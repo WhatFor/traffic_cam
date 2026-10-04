@@ -24,6 +24,8 @@
           pkgs.mpv
           pkgs.ffmpeg
           pkgs.jq
+          pkgs.rsync
+          pkgs.openssh
         ];
 
         # Use the Nix interpreter; uv's downloaded Pythons are not wanted here.
