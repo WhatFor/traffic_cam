@@ -1,0 +1,21 @@
+# Footage and frame grabs: never committed (identifiable people and number plates)
+*.mp4
+*.h264
+*.jpg
+*.png
+*.rrd
+clips/
+recordings/
+
+# Secrets
+.env
+
+# Nix / direnv
+.direnv/
+result
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

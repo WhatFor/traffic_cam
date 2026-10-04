@@ -1,0 +1,23 @@
+# Site config: geometry and detector parameters. No secrets.
+# All coordinates are pixels in the camera.size frame.
+# Empty sections are filled in from a full-frame grab during calibration.
+
+camera: { id: junction-1, size: [2028, 1520], fps: 15 }
+
+inference:
+  model: /usr/share/hailo-models/yolov8s_h8.hef   # fall back to _h8l
+  threshold: 0.3
+  classes: [car, truck, bus, motorcycle, bicycle, person]
+  crops: []                                       # x, y, w, h; square, upscaled to 640x640
+
+zones: {}
+lines: {}
+movements: {}
+signal_heads: {}
+
+detectors:
+  box_junction: { min_stationary_s: 3.0, exempt_movements: [] }
+  red_light: { grace_s: 0.5 }
+  incident: { decel_mps2: 6.0, notify_min_confidence: 0.7 }
+
+clips: { dir: /mnt/data/clips, pre_s: 5, post_s: 55, retention_days: 30, max_gb: 200 }
