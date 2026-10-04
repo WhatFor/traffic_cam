@@ -16,13 +16,15 @@ deploy target:
     ssh {{target}} bash -s -- $changed <<'EOF'
     set -euo pipefail
     cd trafficcam/deploy
+    mountpoint -q /mnt/data || { echo "/mnt/data is not mounted" >&2; exit 1; }
     # Config files are bind-mounted and `up` does not notice edits to them,
     # so restart the running services whose files changed.
     for svc in "$@"; do
         [[ -z $(docker compose ps -q "$svc" 2>/dev/null) ]] || docker compose restart "$svc"
     done
     docker compose pull --quiet
-    docker compose up -d --remove-orphans --wait --wait-timeout 180
+    docker compose run --rm -T data-dirs </dev/null   # stdin is this script
+    docker compose up -d --remove-orphans --wait --wait-timeout 1200
     docker compose ps
     EOF
 

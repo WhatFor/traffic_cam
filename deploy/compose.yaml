@@ -9,10 +9,6 @@
 #
 # Data lives on the SSD. Data mounts set create_host_path: false, so a container
 # fails to start rather than writing to the SD card when /mnt/data is not mounted.
-# Create the directories once:
-#   sudo install -d /mnt/data/postgres /mnt/data/victoriametrics
-#   sudo install -d -o 1883 -g 1883 /mnt/data/mosquitto
-#   sudo install -d -o 472 -g 0 /mnt/data/grafana
 
 name: trafficcam
 
@@ -23,6 +19,24 @@ x-service: &service
     options: { max-size: 10m, max-file: "3" }
 
 services:
+  # One-shot, run by `just deploy` before `up`: creates the data directories
+  # with the owners each image expects. The profile keeps it out of `up`.
+  data-dirs:
+    profiles: [setup]
+    image: eclipse-mosquitto:2.1.2-alpine # any image with a shell
+    user: root
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /data/mosquitto /data/postgres /data/grafana /data/victoriametrics
+        chown 1883:1883 /data/mosquitto
+        chown 472:0 /data/grafana
+    volumes:
+      - type: bind
+        source: /mnt/data
+        target: /data
+        bind: { create_host_path: false }
+
   mosquitto:
     <<: *service
     image: eclipse-mosquitto:2.1.2-alpine
@@ -86,6 +100,10 @@ services:
         bind: { create_host_path: false }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      # The first start runs about 800 database migrations before listening,
+      # which took 14 minutes on the USB hard drive.
+      start_period: 20m
+      start_interval: 10s
 
   victoriametrics:
     <<: *service
