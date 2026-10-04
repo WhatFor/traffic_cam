@@ -3,7 +3,7 @@
 default:
     @just --list
 
-# Push deploy/ (including .env) to the Pi and bring the Compose stack up to date
+# Push deploy/ (including .env) and vision/ to the Pi; update the Compose stack and the vision service
 [arg("target", long="target", help="SSH destination of the Pi, as user@host")]
 deploy target:
     #!/usr/bin/env bash
@@ -12,6 +12,8 @@ deploy target:
     # Top-level directories with changed files; each is named after its service.
     changed=$(rsync -az --delete --mkpath --itemize-changes deploy/ {{target}}:trafficcam/deploy/ \
         | awk '$1 ~ /^<f/ && $2 ~ /\// { sub(/\/.*/, "", $2); print $2 }' | sort -u)
+    rsync -az --delete --mkpath --exclude .venv --exclude __pycache__ --exclude '.*_cache' \
+        vision/ {{target}}:trafficcam/vision/
 
     ssh {{target}} bash -s -- $changed <<'EOF'
     set -euo pipefail
@@ -26,6 +28,17 @@ deploy target:
     docker compose run --rm -T data-dirs </dev/null   # stdin is this script
     docker compose up -d --remove-orphans --wait --wait-timeout 1200
     docker compose ps
+
+    # uv's installer puts it in ~/.local/bin, which non-interactive SSH leaves off PATH.
+    export PATH="$HOME/.local/bin:$PATH"
+    cd ../vision
+    # picamera2 and the Hailo bindings come from apt, hence the system site packages.
+    [[ -d .venv ]] || uv venv --python /usr/bin/python3 --system-site-packages
+    uv sync --frozen --no-dev
+    install -D -m 644 ../deploy/systemd/trafficcam-vision.service ~/.config/systemd/user/trafficcam-vision.service
+    systemctl --user daemon-reload
+    systemctl --user enable trafficcam-vision
+    systemctl --user restart trafficcam-vision
     EOF
 
 # Create or update vision/.venv from the lockfile

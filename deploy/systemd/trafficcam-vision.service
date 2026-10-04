@@ -1,0 +1,13 @@
+# systemd user unit, installed to ~/.config/systemd/user by `just deploy`.
+# Runs at boot without a login session once lingering is enabled for the user.
+
+[Unit]
+Description=Traffic camera vision service
+
+[Service]
+ExecStart=%h/trafficcam/vision/.venv/bin/python -m trafficcam
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

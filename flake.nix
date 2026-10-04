@@ -31,6 +31,12 @@
         # Use the Nix interpreter; uv's downloaded Pythons are not wanted here.
         UV_PYTHON = "${python}/bin/python3.13";
         UV_PYTHON_DOWNLOADS = "never";
+
+        # PyPI wheels with native code (numpy, pyarrow) expect these from the system.
+        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+          pkgs.stdenv.cc.cc.lib
+          pkgs.zlib
+        ];
       };
     };
 }
