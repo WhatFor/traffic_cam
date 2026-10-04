@@ -10,7 +10,8 @@
 # Data lives on the SSD. Data mounts set create_host_path: false, so a container
 # fails to start rather than writing to the SD card when /mnt/data is not mounted.
 # Create the directories once:
-#   sudo install -d /mnt/data/mosquitto /mnt/data/postgres /mnt/data/victoriametrics
+#   sudo install -d /mnt/data/postgres /mnt/data/victoriametrics
+#   sudo install -d -o 1883 -g 1883 /mnt/data/mosquitto
 #   sudo install -d -o 472 -g 0 /mnt/data/grafana
 
 name: trafficcam
@@ -25,6 +26,17 @@ services:
   mosquitto:
     <<: *service
     image: eclipse-mosquitto:2.1.2-alpine
+    # Runs as the image's mosquitto user from the start, so the password file
+    # it creates below has the owner the broker expects.
+    user: "1883:1883"
+    environment:
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?set it in deploy/.env}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        rm -f /tmp/passwd
+        mosquitto_passwd -b -c /tmp/passwd trafficcam "$$MQTT_PASSWORD"
+        exec /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf
     ports:
       - "1883:1883"
     volumes:
@@ -34,7 +46,7 @@ services:
         target: /mosquitto/data
         bind: { create_host_path: false }
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/broker/uptime", "-C", "1", "-W", "3"]
+      test: ["CMD-SHELL", "mosquitto_sub -u trafficcam -P \"$$MQTT_PASSWORD\" -t '$$SYS/broker/uptime' -C 1 -W 3"]
 
   timescaledb:
     <<: *service
