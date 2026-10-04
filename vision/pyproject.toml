@@ -5,7 +5,7 @@ description = "Traffic camera vision service: capture, inference, tracking, dete
 # Matches the Pi's system Python; the venv there uses --system-site-packages.
 requires-python = ">=3.13,<3.14"
 # rerun-sdk must equal the viewer version on the PC (`rerun --version`).
-dependencies = ["rerun-sdk==0.38.1"]
+dependencies = ["numpy>=2", "rerun-sdk==0.38.1"]
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13"]
