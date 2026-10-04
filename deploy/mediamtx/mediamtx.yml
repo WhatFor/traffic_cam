@@ -1,0 +1,12 @@
+# Live view: re-muxes the vision service's MPEG-TS stream; no transcoding.
+# Options not set here keep the MediaMTX defaults (RTSP :8554, WebRTC :8889).
+
+rtmp: false
+hls: false
+srt: false
+moq: false
+
+paths:
+  cam:
+    source: udp+mpegts://127.0.0.1:1234
+    sourceOnDemand: true

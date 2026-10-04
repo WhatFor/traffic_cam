@@ -1,0 +1,115 @@
+# Infrastructure stack on the Pi. Vision runs on the host under systemd, not here.
+#
+# Networking:
+#   - mosquitto and timescaledb sit on the Compose network and publish ports.
+#   - grafana, victoriametrics, node-exporter and mediamtx use the host network.
+#     The scrape targets (vision :9200, node-exporter :9100) listen on the host's
+#     loopback only, which a bridged container cannot reach, and Grafana has to
+#     reach VictoriaMetrics in turn.
+#
+# Data lives on the SSD. Data mounts set create_host_path: false, so a container
+# fails to start rather than writing to the SD card when /mnt/data is not mounted.
+# Create the directories once:
+#   sudo install -d /mnt/data/mosquitto /mnt/data/postgres /mnt/data/victoriametrics
+#   sudo install -d -o 472 -g 0 /mnt/data/grafana
+
+name: trafficcam
+
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: 10m, max-file: "3" }
+
+services:
+  mosquitto:
+    <<: *service
+    image: eclipse-mosquitto:2.1.2-alpine
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - type: bind
+        source: /mnt/data/mosquitto
+        target: /mosquitto/data
+        bind: { create_host_path: false }
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/broker/uptime", "-C", "1", "-W", "3"]
+
+  timescaledb:
+    <<: *service
+    image: timescale/timescaledb:2.30.2-pg18
+    ports:
+      - "127.0.0.1:5432:5432"
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: trafficcam
+      POSTGRES_DB: trafficcam
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set it in deploy/.env}
+      TIMESCALEDB_TELEMETRY: "off"
+      # Cap what timescaledb-tune sizes Postgres for; the Pi's 8 GB is shared with vision.
+      TS_TUNE_MEMORY: 2GB
+    volumes:
+      # PostgreSQL 18 images keep PGDATA under /var/lib/postgresql/18/docker.
+      - type: bind
+        source: /mnt/data/postgres
+        target: /var/lib/postgresql
+        bind: { create_host_path: false }
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "trafficcam", "-d", "trafficcam"]
+
+  grafana:
+    <<: *service
+    image: grafana/grafana:13.2.3
+    network_mode: host # :3000
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set it in deploy/.env}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - type: bind
+        source: /mnt/data/grafana
+        target: /var/lib/grafana
+        bind: { create_host_path: false }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+
+  victoriametrics:
+    <<: *service
+    image: victoriametrics/victoria-metrics:v1.153.0
+    network_mode: host
+    command:
+      - -httpListenAddr=127.0.0.1:8428
+      - -storageDataPath=/storage
+      - -retentionPeriod=1y
+      - -promscrape.config=/etc/victoriametrics/scrape.yaml
+    volumes:
+      - ./victoriametrics/scrape.yaml:/etc/victoriametrics/scrape.yaml:ro
+      - type: bind
+        source: /mnt/data/victoriametrics
+        target: /storage
+        bind: { create_host_path: false }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8428/health"]
+
+  node-exporter:
+    <<: *service
+    image: prom/node-exporter:v1.12.1
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=127.0.0.1:9100
+    volumes:
+      - /:/host:ro,rslave
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9100/"]
+
+  # The image is built from scratch: no shell or HTTP client, so no health check.
+  mediamtx:
+    <<: *service
+    image: bluenviron/mediamtx:1.21.1
+    network_mode: host # UDP :1234 in, RTSP :8554 and WebRTC :8889 out
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
