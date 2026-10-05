@@ -1,0 +1,15 @@
+{
+  "schema": "event/1",
+  "id": "0b8f6a1e-7d42-4e0a-b3c9-5f1d2e8a9c77",
+  "ts": "2026-10-04T13:05:12.345Z",
+  "camera": "junction-1",
+  "config_hash": "sha256:9f2c1d7e",
+  "type": "box_junction_stop",
+  "detector_version": "1",
+  "passage_id": "6c1d0a52-3f0e-4c1b-9d57-2a8e5b7c4f10",
+  "track_id": 1234,
+  "class": "car",
+  "confidence": 0.82,
+  "attrs": { "stationary_s": 6.2, "zone": "box" },
+  "clip_id": null
+}

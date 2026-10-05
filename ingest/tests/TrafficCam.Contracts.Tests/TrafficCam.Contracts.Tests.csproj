@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/TrafficCam.Contracts/TrafficCam.Contracts.csproj" />
+    <Content Include="../../../contracts/examples/*.json" LinkBase="examples" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

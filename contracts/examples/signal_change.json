@@ -1,0 +1,12 @@
+{
+  "schema": "signal_change/1",
+  "id": "c41b7f0d-2a66-4b5e-8f13-0d9e6a3b5c21",
+  "ts": "2026-10-04T13:05:05.000Z",
+  "camera": "junction-1",
+  "config_hash": "sha256:9f2c1d7e",
+  "head_id": "sh_south_primary",
+  "from_state": "red",
+  "to_state": "red_amber",
+  "source": "observed",
+  "confidence": 0.97
+}

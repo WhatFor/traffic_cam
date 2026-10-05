@@ -1,0 +1,13 @@
+{
+  "schema": "clip/1",
+  "id": "a7e3c9d4-1b58-4f6a-9c02-3e7d5f8b6a14",
+  "ts": "2026-10-04T13:06:08.100Z",
+  "camera": "junction-1",
+  "config_hash": "sha256:9f2c1d7e",
+  "event_id": null,
+  "path": "/mnt/data/clips/2026/10/04/a7e3c9d4-1b58-4f6a-9c02-3e7d5f8b6a14.mp4",
+  "keyframe_path": "/mnt/data/clips/2026/10/04/a7e3c9d4-1b58-4f6a-9c02-3e7d5f8b6a14.jpg",
+  "started_at": "2026-10-04T13:05:07.345Z",
+  "ended_at": "2026-10-04T13:06:07.345Z",
+  "bytes": 45120334
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "passage/1",
+  "id": "6c1d0a52-3f0e-4c1b-9d57-2a8e5b7c4f10",
+  "ts": "2026-10-04T13:05:14.812Z",
+  "camera": "junction-1",
+  "config_hash": "sha256:9f2c1d7e",
+  "first_seen": "2026-10-04T13:05:03.120Z",
+  "last_seen": "2026-10-04T13:05:12.812Z",
+  "track_id": 1234,
+  "class": "car",
+  "entry_zone": "approach_south",
+  "exit_zone": "exit_east",
+  "movement": "south->east",
+  "stopline": "stopline_south",
+  "stopline_crossed_at": "2026-10-04T13:05:06.345Z",
+  "signal_state_at_crossing": "red_amber",
+  "signal_source": "observed",
+  "speed_kmh": 31.5,
+  "flags": { "camera_moved": false }
+}

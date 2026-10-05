@@ -58,6 +58,18 @@ lint:
     ruff check .
     uv run pyright
 
-[working-directory('vision')]
 test:
-    uv run pytest
+    cd vision && uv run pytest
+    cd ingest && dotnet test
+
+# Regenerate the pydantic models and C# types from contracts/
+gen-contracts:
+    cd vision && uv run datamodel-codegen \
+        --input ../contracts/trafficcam.v1.schema.json --input-file-type jsonschema \
+        --output src/trafficcam/contracts.py --output-model-type pydantic_v2.BaseModel \
+        --target-python-version 3.13 --skip-root-model --disable-timestamp \
+        --use-schema-description --use-field-description --use-one-literal-as-default \
+        --field-constraints --allow-population-by-field-name \
+        --formatters ruff-format ruff-check \
+        --custom-file-header '# Generated from contracts/trafficcam.v1.schema.json by `just gen-contracts`. Do not edit.'
+    dotnet run contracts/gen-csharp.cs -- contracts/trafficcam.v1.schema.json ingest/src/TrafficCam.Contracts/Contracts.g.cs

@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "trafficcam MQTT payloads, v1",
+  "description": "Every payload on trafficcam/v1/#. Each carries the envelope: schema, id, ts, camera. Timestamps are UTC, taken from the frame's sensor timestamp.",
+  "definitions": {
+    "SignalState": {
+      "type": "string",
+      "enum": ["red", "red_amber", "green", "amber", "unknown"]
+    },
+    "SignalSource": {
+      "description": "observed: read from a visible signal head. inferred: estimated for a head that cannot be seen.",
+      "type": "string",
+      "enum": ["observed", "inferred"]
+    },
+    "RoadUserClass": {
+      "type": "string",
+      "enum": ["car", "truck", "bus", "motorcycle", "bicycle", "person"]
+    },
+    "VisionState": {
+      "type": "string",
+      "enum": ["online", "offline"]
+    },
+    "Passage": {
+      "description": "One completed road-user trip through the junction. Topic: trafficcam/v1/passages.",
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "const": "passage/1" },
+        "id": { "type": "string", "format": "uuid" },
+        "ts": { "description": "When the passage closed.", "type": "string", "format": "date-time" },
+        "camera": { "type": "string" },
+        "config_hash": { "type": "string" },
+        "first_seen": { "type": "string", "format": "date-time" },
+        "last_seen": { "type": "string", "format": "date-time" },
+        "track_id": { "type": ["integer", "null"] },
+        "class": { "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/RoadUserClass" }] },
+        "entry_zone": { "type": ["string", "null"] },
+        "exit_zone": { "type": ["string", "null"] },
+        "movement": { "description": "For example 'south->east'.", "type": ["string", "null"] },
+        "stopline": { "type": ["string", "null"] },
+        "stopline_crossed_at": { "type": ["string", "null"], "format": "date-time" },
+        "signal_state_at_crossing": { "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/SignalState" }] },
+        "signal_source": { "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/SignalSource" }] },
+        "speed_kmh": { "type": ["number", "null"], "minimum": 0 },
+        "flags": { "type": "object", "additionalProperties": {} }
+      },
+      "required": [
+        "schema", "id", "ts", "camera", "config_hash", "first_seen", "last_seen", "track_id", "class",
+        "entry_zone", "exit_zone", "movement", "stopline", "stopline_crossed_at",
+        "signal_state_at_crossing", "signal_source", "speed_kmh", "flags"
+      ]
+    },
+    "Event": {
+      "description": "One detector event. Topic: trafficcam/v1/events/{type}.",
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "const": "event/1" },
+        "id": { "type": "string", "format": "uuid" },
+        "ts": { "type": "string", "format": "date-time" },
+        "camera": { "type": "string" },
+        "config_hash": { "type": "string" },
+        "type": { "description": "Detector event type, for example 'box_junction_stop'.", "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "detector_version": { "type": "string" },
+        "passage_id": { "type": ["string", "null"], "format": "uuid" },
+        "track_id": { "type": ["integer", "null"] },
+        "class": { "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/RoadUserClass" }] },
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "attrs": { "description": "Detector-specific attributes.", "type": "object", "additionalProperties": {} },
+        "clip_id": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "required": [
+        "schema", "id", "ts", "camera", "config_hash", "type", "detector_version", "passage_id",
+        "track_id", "class", "confidence", "attrs", "clip_id"
+      ]
+    },
+    "SignalChange": {
+      "description": "A signal head changed state. Topic: trafficcam/v1/signals/{head_id}, retained.",
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "const": "signal_change/1" },
+        "id": { "type": "string", "format": "uuid" },
+        "ts": { "type": "string", "format": "date-time" },
+        "camera": { "type": "string" },
+        "config_hash": { "type": "string" },
+        "head_id": { "type": "string" },
+        "from_state": { "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/SignalState" }] },
+        "to_state": { "$ref": "#/definitions/SignalState" },
+        "source": { "$ref": "#/definitions/SignalSource" },
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      },
+      "required": [
+        "schema", "id", "ts", "camera", "config_hash", "head_id", "from_state", "to_state", "source", "confidence"
+      ]
+    },
+    "Clip": {
+      "description": "A clip file was closed. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}.",
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "const": "clip/1" },
+        "id": { "type": "string", "format": "uuid" },
+        "ts": { "description": "When the file was closed.", "type": "string", "format": "date-time" },
+        "camera": { "type": "string" },
+        "config_hash": { "type": "string" },
+        "event_id": { "type": ["string", "null"], "format": "uuid" },
+        "path": { "type": "string" },
+        "keyframe_path": { "description": "Still frame from the event moment.", "type": ["string", "null"] },
+        "started_at": { "type": "string", "format": "date-time" },
+        "ended_at": { "type": "string", "format": "date-time" },
+        "bytes": { "type": "integer", "format": "int64", "minimum": 0 }
+      },
+      "required": [
+        "schema", "id", "ts", "camera", "config_hash", "event_id", "path", "keyframe_path",
+        "started_at", "ended_at", "bytes"
+      ]
+    },
+    "ClipCommand": {
+      "description": "Manual clip trigger. Topic: trafficcam/v1/cmd/clip.",
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "const": "clip_command/1" },
+        "id": { "type": "string", "format": "uuid" },
+        "ts": { "type": "string", "format": "date-time" },
+        "camera": { "type": "string" },
+        "reason": { "type": "string" }
+      },
+      "required": ["schema", "id", "ts", "camera", "reason"]
+    },
+    "Status": {
+      "description": "Vision presence; 'offline' is the last will. Topic: trafficcam/v1/status/vision, retained.",
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "const": "status/1" },
+        "id": { "type": "string", "format": "uuid" },
+        "ts": { "type": "string", "format": "date-time" },
+        "camera": { "type": "string" },
+        "state": { "$ref": "#/definitions/VisionState" }
+      },
+      "required": ["schema", "id", "ts", "camera", "state"]
+    }
+  }
+}
