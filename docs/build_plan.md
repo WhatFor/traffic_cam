@@ -144,8 +144,8 @@ Python owns everything that touches frames; .NET owns storage, APIs and notifica
 | Image processing | OpenCV (`python3-opencv`), numpy | Lamp brightness, image quality, homography |
 | Debug view | Rerun SDK 0.37.2 | Pinned to the PC's viewer; off by default in production |
 | Message bus | Mosquitto (MQTT 5) | paho-mqtt in Python, MQTTnet in .NET |
-| Contracts | JSON Schema in `contracts/` | Generated pydantic models and C# types; CI checks both |
-| Ingest, API, notifier | .NET 10 worker plus minimal API | Npgsql, DbUp migrations, MailKit, prometheus-net; linux-arm64 container image |
+| Contracts | JSON Schema in `contracts/` | Generated pydantic models and C# types |
+| Ingest, API, notifier | .NET 10 worker plus minimal API | Npgsql, DbUp migrations, MailKit, prometheus-net; runs in Microsoft's stock ASP.NET runtime image |
 | Database | PostgreSQL with TimescaleDB | Time-partitioned tables (hypertables) and continuous aggregates (rollups) |
 | Metrics | VictoriaMetrics single-node, node\_exporter | Prometheus-compatible; `prometheus_client` in Python |
 | Dashboards and alerts | Grafana, provisioned from the repo | Alerts by email and ntfy |
@@ -153,7 +153,7 @@ Python owns everything that touches frames; .NET owns storage, APIs and notifica
 | Live view | MediaMTX | RTSP and WebRTC, re-muxed only, on demand |
 | Process management | systemd for vision; Docker Compose for infrastructure | Vision needs direct camera and Hailo access, so it stays on the host |
 | Remote access | Tailscale | No inbound ports opened |
-| Repo and CI | GitHub, GitHub Actions, GHCR | Path-filtered workflows per component |
+| Repo | GitHub | One monorepo |
 | Dev environment | Nix flake devShell on the PC; `just` | One task runner across languages |
 | Later | Rust via PyO3 and maturin; a public VPS | Rust only if a Python hot path needs it |
 
@@ -192,15 +192,13 @@ traffic-cam/
 │   ├── grafana/           # provisioning + dashboard JSON
 │   ├── mosquitto/
 │   └── mediamtx/
-├── tools/                 # calibration helpers, replay, labelling export, prototypes/
-└── .github/workflows/
+└── tools/                 # calibration helpers, replay, labelling export, prototypes/
 ```
 
-- **Contracts first**: every MQTT payload is defined once in `contracts/` as JSON Schema. `just gen-contracts` generates pydantic models and C# types; CI fails if the generated code is stale.
+- **Contracts first**: every MQTT payload is defined once in `contracts/` as JSON Schema. `just gen-contracts` generates pydantic models and C# types.
 - **One owner per piece of state**: vision only publishes to MQTT; ingest owns the database and its migrations. Migrations are plain SQL (via DbUp), because TimescaleDB DDL fits badly in EF Core.
 - **Site config is data**: `config/site.yaml` is validated by a pydantic model at startup. Its content hash is attached to every event and passage.
-- **.NET conventions**: `Directory.Build.props`, central package management (`Directory.Packages.props`), xUnit, nullable enabled. Publish with `-r linux-arm64` from the PC; no emulation needed.
-- **CI**: GitHub Actions workflows filtered by path — ruff, pyright and pytest for `vision/`; build and test for `ingest/`; schema and codegen checks for `contracts/`. Push the ingest image to GHCR.
+- **.NET conventions**: `Directory.Build.props`, central package management (`Directory.Packages.props`), xUnit, nullable enabled. Publish from the PC with `-r linux-arm64`, framework-dependent; no emulation needed.
 - **Ignore from day one**: `*.mp4`, `*.h264`, `*.jpg`, `*.png`, `*.rrd`, `clips/`, `recordings/`, `.env`. Commit a `.env.example`.
 
 ## Contracts: MQTT, database, site config
@@ -461,7 +459,7 @@ A mode that records 10 minutes every few hours across day, night and rain to the
 
 ## Ingest, storage and notifications
 
-A single .NET 10 service, `ingest`, turns MQTT messages into database rows, serves clip files, and sends notifications. It runs as a container in the Compose stack.
+A single .NET 10 service, `ingest`, turns MQTT messages into database rows, serves clip files, and sends notifications. It runs as a container in the Compose stack, from Microsoft's stock ASP.NET runtime image with the published build bind-mounted. There is no custom image and no registry.
 
 ### Ingest
 
@@ -529,7 +527,7 @@ The box must recover from anything short of hardware failure without a visit, an
 1. rsync `vision/`, `config/` and `deploy/` to `~/trafficcam` on the Pi.
 2. `uv sync --frozen` into the venv (created with `--system-site-packages`).
 3. Install or refresh the systemd unit, then `systemctl restart trafficcam-vision`.
-4. `docker compose pull && docker compose up -d`. The ingest image is built in CI for linux/arm64 and pulled from GHCR.
+4. `docker compose pull && docker compose up -d`. Ingest is published on the PC into `deploy/ingest/` (git-ignored) before the rsync, so it travels with `deploy/` and its container is restarted when the build changes.
 
 ### Ports
 
@@ -554,8 +552,8 @@ Most logic is tested on the PC from recorded track logs; only capture and infere
 
 ### Three levels of test
 
-1. **Unit tests** (PC, CI): geometry, the signal state machine, detectors fed with made-up tracks.
-2. **Fixture tests** (PC, CI): short excerpts of real track logs around known moments, each with an expected-events file. A detector change must keep them passing; regenerate expected output deliberately, never automatically.
+1. **Unit tests** (PC): geometry, the signal state machine, detectors fed with made-up tracks.
+2. **Fixture tests** (PC): short excerpts of real track logs around known moments, each with an expected-events file. A detector change must keep them passing; regenerate expected output deliberately, never automatically.
 3. **Replay on the Pi**: `VideoFileSource` with `HailoBackend` over recorded clips. Compare against hand labels to get precision and recall per detector. `just replay <clip>`.
 
 ### Track logs
@@ -599,16 +597,15 @@ Build in this order. Each phase ends with acceptance checks that run on the real
 
 ### Phase 1 — Repo and dev environment
 
-- [ ] Create the `traffic-cam` repo with the layout above, `.gitignore`, `deploy/.env.example` and a README.
-- [ ] `flake.nix` devShell: uv, Python 3.13, .NET 10 SDK, just, mosquitto clients, rerun 0.37.2, mpv, ffmpeg, jq.
-- [ ] `justfile`: `test`, `lint`, `fmt`, `gen-contracts`, `deploy`, `replay`, `logs`, `clip`.
-- [ ] Contracts v1 (passage, event, signal change, clip, status, clip command) with pydantic and C# generation.
-- [ ] `site.yaml` schema, loader and hash. First draft from a full-frame grab: crops, box polygon, foreground stop line, approach and exit zones.
-- [ ] Path-filtered CI workflows.
-- [ ] Copy `detect_stream.py` and `detect_rerun.py` into `tools/prototypes/`.
+- [x] Create the `traffic-cam` repo with the layout above, `.gitignore`, `deploy/.env.example` and a README.
+- [x] `flake.nix` devShell: uv, Python 3.13, .NET 10 SDK, just, mosquitto clients, rerun 0.37.2, mpv, ffmpeg, jq.
+- [x] `justfile`: `test`, `lint`, `fmt`, `gen-contracts`, `deploy`, `replay`, `logs`, `clip`.
+- [x] Contracts v1 (passage, event, signal change, clip, status, clip command) with pydantic and C# generation.
+- [x] `site.yaml` schema, loader and hash.
+- [ ] First draft from a full-frame grab: crops, box polygon, foreground stop line, approach and exit zones.
 - [ ] ADRs: monorepo; MQTT bus; Postgres with TimescaleDB; vision in Python on the host.
 
-Acceptance: `just test` and `just lint` pass on the PC, CI is green, and the draft config validates.
+Acceptance: `just test` and `just lint` pass on the PC, and the draft config validates.
 
 ### Phase 2 — Vision core
 
@@ -641,7 +638,7 @@ Acceptance:
   - MediaMTX, on the host network.
 
   All data volumes go under `/mnt/data`.
-- [ ] `ingest`: MQTT consumer, DbUp migrations, idempotent inserts, `/metrics`. The arm64 image is built in CI and pushed to GHCR.
+- [ ] `ingest`: MQTT consumer, DbUp migrations, idempotent inserts, `/metrics`. Published on the PC into `deploy/ingest/` and run from the stock ASP.NET runtime image.
 - [ ] Grafana provisioning: datasources and dashboards for passages by movement and class, vision health, and host health.
 - [ ] Camera-moved check and its alert, plus alerts for vision down, low fps, disk and temperature or throttling.
 - [ ] Nightly `pg_dump`.
@@ -729,7 +726,6 @@ The Pi has the OS, camera stack, Hailo packages and a venv with `rerun-sdk`; eve
 | Pi | Tailscale | Phase 2 | Skip if already on the tailnet |
 | Pi | Docker Engine and Compose plugin | Phase 3 | Docker's Debian apt repository for Trixie |
 | Pi | Containers: Mosquitto, TimescaleDB, Grafana, VictoriaMetrics, node\_exporter, MediaMTX, `ingest` | Phase 3 | Pinned tags in `compose.yaml`; arm64 images |
-| Pi | GHCR read token | Phase 3 | `docker login ghcr.io` with a `read:packages` token, if the repo is private |
 | PC | devShell from `flake.nix` | Phase 1 | uv, Python 3.13, .NET 10 SDK, just, mosquitto clients, rerun 0.37.2, mpv, ffmpeg, jq |
 | PC | Docker or Podman | Phase 3 | Optional: run the Compose stack locally for ingest tests |
 | Account | SMTP with an app password, or a transactional mail service | Phase 7 | Secrets in `deploy/.env` |
@@ -785,5 +781,5 @@ None of these block Phase 1; each blocks the phase noted.
 - [ ] The junction's speed limit; speeds are stored in km/h, and the limit and dashboards use mph. (Phase 8)
 - [ ] Clip retention: are 30 days and a 200 GB cap right? (Phase 6)
 - [ ] Track-log retention: are 7 days enough? (Phase 2)
-- [ ] Is the GitHub repo private or public? It affects GHCR tokens and repo hygiene. (Phase 1)
+- [ ] Is the GitHub repo private or public? It affects repo hygiene. (Phase 1)
 - [ ] Which mail provider sends the alerts? (Phase 7)
