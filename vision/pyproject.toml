@@ -17,6 +17,7 @@ dependencies = [
     "rerun-sdk==0.38.1",
     "supervision>=0.30,<0.31",
     "trackers>=2.6,<3",
+    "prometheus-client>=0.26,<1",
 ]
 
 [tool.uv]

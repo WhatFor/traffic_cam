@@ -5,12 +5,18 @@
 Description=Traffic camera vision service
 
 [Service]
+# Vision says when it is ready and then pings from its frame loop; if the pings
+# stop for WatchdogSec, systemd kills it and Restart= brings it back.
+Type=notify
+NotifyAccess=main
+WatchdogSec=30
 Environment=VISION_ARGS=
 # MQTT_PASSWORD for the broker, and VISION_ARGS for extra flags such as --debug-rerun.
 EnvironmentFile=%h/trafficcam/deploy/.env
 ExecStart=%h/trafficcam/vision/.venv/bin/python -m trafficcam \
     --config %h/trafficcam/config/site.yaml \
     --record-tracks /mnt/data/tracklogs \
+    --metrics-port 9200 \
     $VISION_ARGS
 Restart=always
 RestartSec=5

@@ -143,6 +143,17 @@ def test_mqtt_status_is_online_then_offline_on_close(
         assert payload["camera"] == "junction-1"
 
 
+def test_mqtt_reports_whether_it_is_connected(broker: int, received: Callable[..., dict]) -> None:
+    sink = sink_for(broker)
+    assert not sink_for(free_port()).connected
+
+    received(STATUS_TOPIC, "online")
+    assert sink.connected
+
+    sink.close()
+    assert not sink.connected
+
+
 def test_mqtt_status_goes_offline_when_the_process_is_killed(
     broker: int, received: Callable[..., dict]
 ) -> None:
@@ -180,6 +191,14 @@ def test_wait_for_clock_sync_polls_until_synchronised() -> None:
     answers = iter([False, False, True])
     slept: list[float] = []
 
-    wait_for_clock_sync(synchronised=lambda: next(answers), sleep=slept.append, poll_s=2.0)
+    polls: list[None] = []
+
+    wait_for_clock_sync(
+        synchronised=lambda: next(answers),
+        sleep=slept.append,
+        poll_s=2.0,
+        waiting=lambda: polls.append(None),
+    )
 
     assert slept == [2.0, 2.0]
+    assert len(polls) == 2

@@ -13,6 +13,7 @@ Vision is written in Python and runs directly on the host, not in a container.
 - It uses the system Python in a virtual environment created with `--system-site-packages`, so apt-installed libraries are importable. Other dependencies come from the lockfile through `uv sync`.
 - It runs as a systemd user unit, with lingering enabled so it starts at boot. A system unit would need sudo for every install and restart, and sudo on the Pi asks for a password.
 - Hardware-specific imports are confined to two modules, `trafficcam.sources.picamera` and `trafficcam.inference.hailo`, so the rest of the package runs and is tested on the PC.
+- The unit is `Type=notify` with a watchdog (see 0009). The notify call comes from `python3-systemd`, another apt package; it is imported in one place, and only when systemd started the process.
 
 ## Consequences
 

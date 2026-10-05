@@ -42,6 +42,10 @@ class MqttSink:
         self._client.connect_async(host, port, keepalive=KEEPALIVE_S)
         self._client.loop_start()
 
+    @property
+    def connected(self) -> bool:
+        return self._client.is_connected()
+
     def passage(self, passage: Passage) -> None:
         info = self._client.publish(PASSAGES_TOPIC, passage.model_dump_json(by_alias=True), qos=QOS)
         if info.rc == mqtt.MQTT_ERR_QUEUE_SIZE:

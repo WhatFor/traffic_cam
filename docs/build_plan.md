@@ -615,9 +615,9 @@ Acceptance: `just test` and `just lint` pass on the PC, and the draft config val
 - [x] Geometry: zones, directional lines, ground point.
 - [x] Passage builder.
 - [x] `MqttSink` (QoS 1, last-will status) and `JsonlSink`.
-- [ ] `RerunSink` behind `--debug-rerun`; `--record-tracks`.
-- [ ] Metrics endpoint, image-quality metrics, systemd unit with watchdog and time-sync wait.
-- [ ] `just deploy` working end to end.
+- [x] `RerunSink` behind `--debug-rerun`; `--record-tracks`.
+- [x] Metrics endpoint, image-quality metrics, systemd unit with watchdog and time-sync wait.
+- [x] `just deploy` working end to end.
 
 Acceptance:
 
@@ -628,8 +628,8 @@ Acceptance:
 
 ### Phase 3 — Infrastructure and ingest
 
-- [ ] Install Docker on the Pi from Docker's Debian repository (Trixie).
-- [ ] `compose.yaml` services:
+- [x] Install Docker on the Pi from Docker's Debian repository (Trixie).
+- [x] `compose.yaml` services:
   - Mosquitto, with persistence;
   - TimescaleDB;
   - Grafana;
@@ -638,8 +638,8 @@ Acceptance:
   - MediaMTX, on the host network.
 
   All data volumes go under `/mnt/data`.
-- [ ] `ingest`: MQTT consumer, DbUp migrations, idempotent inserts, `/metrics`. Published on the PC into `deploy/ingest/` and run from the stock ASP.NET runtime image.
-- [ ] Grafana provisioning: datasources and dashboards for passages by movement and class, vision health, and host health.
+- [x] `ingest`: MQTT consumer, DbUp migrations, idempotent inserts, `/metrics`. Published on the PC into `deploy/ingest/` and run from the stock ASP.NET runtime image.
+- [x] Grafana provisioning: datasources and dashboards for passages by movement and class, vision health, and host health.
 - [ ] Camera-moved check and its alert, plus alerts for vision down, low fps, disk and temperature or throttling.
 - [ ] Nightly `pg_dump`.
 
