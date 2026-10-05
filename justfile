@@ -20,6 +20,7 @@ deploy target:
     set -euo pipefail
     cd trafficcam/deploy
     mountpoint -q /mnt/data || { echo "/mnt/data is not mounted" >&2; exit 1; }
+    mkdir -p /mnt/data/tracklogs
     # Config files are bind-mounted and `up` does not notice edits to them,
     # so restart the running services whose files changed.
     for svc in "$@"; do

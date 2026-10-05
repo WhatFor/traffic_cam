@@ -7,7 +7,8 @@ import supervision as sv
 from trafficcam.config import SiteConfig
 from trafficcam.contracts import Passage
 from trafficcam.geometry import Observation
-from trafficcam.inference import COCO_CLASS_IDS
+from trafficcam.inference import CLASS_NAMES
+from trafficcam.pipeline import FrameResult
 from trafficcam.sources import Frame
 
 GRPC_PORT = 9876
@@ -16,11 +17,9 @@ JPEG_QUALITY = 75
 # Pixels in the logged image between a track's box and the anchor of its id label.
 ID_LABEL_OFFSET = 24
 
-CLASS_NAMES = {class_id: name.value for name, class_id in COCO_CLASS_IDS.items()}
-
 
 class RerunSink:
-    """Serves a Rerun gRPC server and logs to it.
+    """Serves a Rerun gRPC server and logs every frame's result and every passage to it.
 
     Everything is drawn over the camera image, which is smaller than the full frame that
     detections and site geometry are measured in, so coordinates are scaled on the way out.
@@ -55,10 +54,20 @@ class RerunSink:
             static=True,
         )
 
+    def observe(self, result: FrameResult) -> None:
+        self.frame(result.frame)
+        self.detections(result.detections, result.inference_ms)
+        self.observation(result.observation)
+
+    def close(self) -> None:
+        pass
+
     def frame(self, frame: Frame) -> None:
         rr.set_time("frame", sequence=frame.index)
         rr.set_time("capture_time", timestamp=frame.timestamp)
-        rr.log("camera", rr.Image(frame.image).compress(jpeg_quality=JPEG_QUALITY))
+        # A replay of a track log has no pictures.
+        if frame.image.size:
+            rr.log("camera", rr.Image(frame.image).compress(jpeg_quality=JPEG_QUALITY))
 
     def detections(self, detections: sv.Detections, elapsed_ms: float) -> None:
         confidence = detections.confidence if detections.confidence is not None else []
@@ -71,7 +80,7 @@ class RerunSink:
                 array_format=rr.Box2DFormat.XYXY,
                 class_ids=class_id,
                 labels=[
-                    f"{CLASS_NAMES[int(c)]} {score:.0%}"
+                    f"{CLASS_NAMES[int(c)].value} {score:.0%}"
                     for c, score in zip(class_id, confidence, strict=True)
                 ],
             ),
@@ -96,11 +105,10 @@ class RerunSink:
         for crossing in observation.crossings:
             rr.log("events/crossings", rr.TextLog(f"#{crossing.track_id} crossed {crossing.line}"))
 
-    def passages(self, passages: list[Passage]) -> None:
-        for passage in passages:
-            route = passage.movement or f"{passage.entry_zone or '?'}->{passage.exit_zone or '?'}"
-            parts = [f"{passage.class_.value if passage.class_ else '?'} {route}"]
-            if passage.stopline is not None:
-                parts.append(f"crossed {passage.stopline}")
-            parts.append(f"{(passage.last_seen - passage.first_seen).total_seconds():.1f} s")
-            rr.log("events/passages", rr.TextLog(f"#{passage.track_id} " + ", ".join(parts)))
+    def passage(self, passage: Passage) -> None:
+        route = passage.movement or f"{passage.entry_zone or '?'}->{passage.exit_zone or '?'}"
+        parts = [f"{passage.class_.value if passage.class_ else '?'} {route}"]
+        if passage.stopline is not None:
+            parts.append(f"crossed {passage.stopline}")
+        parts.append(f"{(passage.last_seen - passage.first_seen).total_seconds():.1f} s")
+        rr.log("events/passages", rr.TextLog(f"#{passage.track_id} " + ", ".join(parts)))

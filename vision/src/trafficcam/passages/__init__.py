@@ -9,9 +9,7 @@ from datetime import datetime, timedelta
 from trafficcam.config import SiteConfig
 from trafficcam.contracts import Passage
 from trafficcam.geometry import Crossing, Observation
-from trafficcam.inference import COCO_CLASS_IDS
-
-CLASS_NAMES = {class_id: name for name, class_id in COCO_CLASS_IDS.items()}
+from trafficcam.inference import CLASS_NAMES
 
 
 @dataclass(slots=True)

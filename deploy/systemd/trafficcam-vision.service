@@ -5,9 +5,13 @@
 Description=Traffic camera vision service
 
 [Service]
-# MQTT_PASSWORD for the broker.
+Environment=VISION_ARGS=
+# MQTT_PASSWORD for the broker, and VISION_ARGS for extra flags such as --debug-rerun.
 EnvironmentFile=%h/trafficcam/deploy/.env
-ExecStart=%h/trafficcam/vision/.venv/bin/python -m trafficcam --config %h/trafficcam/config/site.yaml
+ExecStart=%h/trafficcam/vision/.venv/bin/python -m trafficcam \
+    --config %h/trafficcam/config/site.yaml \
+    --record-tracks /mnt/data/tracklogs \
+    $VISION_ARGS
 Restart=always
 RestartSec=5
 # Status 2 means the config is invalid; restarting would not fix it.

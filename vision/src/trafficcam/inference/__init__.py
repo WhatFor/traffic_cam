@@ -15,6 +15,7 @@ COCO_CLASS_IDS: dict[RoadUserClass, int] = {
     RoadUserClass.bus: 5,
     RoadUserClass.truck: 7,
 }
+CLASS_NAMES = {class_id: name for name, class_id in COCO_CLASS_IDS.items()}
 
 
 class InferenceBackend(Protocol):

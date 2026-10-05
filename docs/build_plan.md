@@ -614,7 +614,7 @@ Acceptance: `just test` and `just lint` pass on the PC, and the draft config val
 - [x] Tracker wrapper around `ByteTrackTracker`, dropping `tracker_id == -1`.
 - [x] Geometry: zones, directional lines, ground point.
 - [x] Passage builder.
-- [ ] `MqttSink` (QoS 1, last-will status) and `JsonlSink`.
+- [x] `MqttSink` (QoS 1, last-will status) and `JsonlSink`.
 - [ ] `RerunSink` behind `--debug-rerun`; `--record-tracks`.
 - [ ] Metrics endpoint, image-quality metrics, systemd unit with watchdog and time-sync wait.
 - [ ] `just deploy` working end to end.
