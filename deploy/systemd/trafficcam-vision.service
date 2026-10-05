@@ -5,6 +5,8 @@
 Description=Traffic camera vision service
 
 [Service]
+# MQTT_PASSWORD for the broker.
+EnvironmentFile=%h/trafficcam/deploy/.env
 ExecStart=%h/trafficcam/vision/.venv/bin/python -m trafficcam --config %h/trafficcam/config/site.yaml
 Restart=always
 RestartSec=5

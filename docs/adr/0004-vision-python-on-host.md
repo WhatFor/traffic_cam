@@ -19,6 +19,6 @@ Vision is written in Python and runs directly on the host, not in a container.
 - Vision is deployed differently from the rest: files are copied over and the unit is restarted, where the containers are managed by Compose.
 - Packages from the lockfile shadow the apt versions of the same package (numpy, for example). That has worked so far but is a place to look if an apt library breaks.
 - PyAV and OpenCV are the exceptions: the lockfile skips both on the Pi, so picamera2 keeps the apt builds it was packaged with. The PC installs the same versions from PyPI. uv overrides and exclusions apply the same rule to packages that depend on them (supervision, trackers).
-- A user unit cannot depend on system units. The plan's ordering after time sync and its requirement that the data drive is mounted need another mechanism, such as checks in the service itself.
+- A user unit cannot depend on system units, so the plan's ordering after time sync is done in the service: when running from the camera, vision waits for the clock to be synchronised before it starts. Without a network after a power cut, that means no vision and no live view until the clock syncs. The plan's requirement that the data drive is mounted still needs a mechanism.
 - Logs are in the system journal: `journalctl --user-unit trafficcam-vision`.
 - If a Python hot path proves too slow, the plan is a Rust extension for that path, not a rewrite.
