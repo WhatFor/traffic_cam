@@ -74,3 +74,16 @@ gen-contracts:
         --formatters ruff-format ruff-check \
         --custom-file-header '# Generated from contracts/trafficcam.v1.schema.json by `just gen-contracts`. Do not edit.'
     dotnet run contracts/gen-csharp.cs -- contracts/trafficcam.v1.schema.json ingest/src/TrafficCam.Contracts/Contracts.g.cs
+
+# Save a full-resolution still from the live stream to calibration/frame.png
+[arg("host", long="host", help="Host name or address of the Pi")]
+grab-frame host:
+    mkdir -p calibration
+    ffmpeg -hide_banner -loglevel error -y -rtsp_transport tcp -i rtsp://{{host}}:8554/cam \
+        -ss 1 -frames:v 1 -update 1 calibration/frame.png
+
+# Draw the site config's geometry over calibration/frame.png, into calibration/preview.png
+[working-directory('vision')]
+preview:
+    uv run python -m trafficcam.preview --config ../config/site.yaml \
+        --frame ../calibration/frame.png --out ../calibration/preview.png

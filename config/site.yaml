@@ -8,10 +8,31 @@ inference:
   model: /usr/share/hailo-models/yolov8s_h8.hef   # fall back to _h8l
   threshold: 0.3
   classes: [car, truck, bus, motorcycle, bicycle, person]
-  crops: []                                       # x, y, w, h; square, upscaled to 640x640
+  crops:                                          # x, y, w, h; square, resized to 640x640
+    - [480, 340, 1060, 1060]                      # junction and the three visible arms
 
-zones: {}
-lines: {}
+# The camera looks east: the foreground approach is the west arm, north is to
+# the left and the south arm is hidden behind the building on the right.
+zones:
+  box_junction:                                   # right side clipped where the building hides it
+    polygon: [[928, 820], [1170, 612], [1485, 656], [1475, 752], [1445, 772], [1437, 868], [1422, 897]]
+  approach_west:
+    polygon: [[300, 1245], [315, 1150], [475, 1033], [545, 980], [680, 1003], [908, 1044], [735, 1230], [568, 1378]]
+  exit_west:
+    polygon: [[1050, 1035], [1332, 1090], [1225, 1320], [1172, 1510], [850, 1468], [655, 1400], [805, 1240], [968, 1090]]
+  approach_north:
+    polygon: [[485, 632], [775, 645], [748, 712], [485, 715]]
+  exit_north:
+    polygon: [[508, 722], [700, 742], [765, 750], [765, 800], [585, 800], [508, 765]]
+  approach_east:
+    polygon: [[1420, 588], [1500, 588], [1538, 415], [1500, 410], [1468, 470], [1436, 545]]
+  exit_east:
+    polygon: [[1180, 602], [1230, 535], [1360, 405], [1450, 310], [1495, 320], [1430, 440], [1385, 535], [1335, 607]]
+
+lines:
+  stopline_west_eastbound: { points: [[678, 1003], [908, 1044]], direction: inbound }
+  stopline_west_northbound: { points: [[600, 900], [750, 900]], direction: inbound }   # left-turn slip lane
+  stopline_north: { points: [[780, 650], [710, 710]], direction: inbound }
 movements: {}
 signal_heads: {}
 

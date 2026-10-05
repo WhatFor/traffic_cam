@@ -23,3 +23,6 @@ __pycache__/
 # .NET
 bin/
 obj/
+
+# Frame grabs and previews used for calibration
+calibration/
