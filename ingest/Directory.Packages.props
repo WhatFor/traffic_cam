@@ -3,6 +3,10 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="dbup-postgresql" Version="7.0.1" />
+    <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
+    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="prometheus-net.AspNetCore" Version="8.2.1" />
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
   </ItemGroup>
 </Project>

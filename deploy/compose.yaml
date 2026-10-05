@@ -1,7 +1,7 @@
 # Infrastructure stack on the Pi. Vision runs on the host under systemd, not here.
 #
 # Networking:
-#   - mosquitto and timescaledb sit on the Compose network and publish ports.
+#   - mosquitto, timescaledb and ingest sit on the Compose network and publish ports.
 #   - grafana, victoriametrics, node-exporter and mediamtx use the host network.
 #     The scrape targets (vision :9200, node-exporter :9100) listen on the host's
 #     loopback only, which a bridged container cannot reach, and Grafana has to
@@ -83,6 +83,33 @@ services:
         bind: { create_host_path: false }
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "trafficcam", "-d", "trafficcam"]
+
+  # Published on the PC by `just deploy` into ./ingest; there is no image to build.
+  ingest:
+    <<: *service
+    # The tag must provide the .NET runtime that ingest was published for.
+    image: mcr.microsoft.com/dotnet/aspnet:10.0.12
+    user: app
+    working_dir: /app
+    command: ["dotnet", "TrafficCam.Ingest.dll"]
+    depends_on:
+      mosquitto: { condition: service_healthy }
+      timescaledb: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:8080:8080" # /metrics, for VictoriaMetrics
+    environment:
+      Mqtt__Host: mosquitto
+      Mqtt__Password: ${MQTT_PASSWORD:?set it in deploy/.env}
+      Database__Host: timescaledb
+      Database__Password: ${POSTGRES_PASSWORD:?set it in deploy/.env}
+    volumes:
+      - ./ingest:/app:ro
+    healthcheck:
+      # The image has no curl or wget, so the program checks itself.
+      test: ["CMD", "dotnet", "TrafficCam.Ingest.dll", "--healthcheck"]
+      interval: 60s
+      start_period: 60s
+      start_interval: 5s
 
   grafana:
     <<: *service

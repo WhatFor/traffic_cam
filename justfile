@@ -3,11 +3,15 @@
 default:
     @just --list
 
-# Push deploy/ (including .env), vision/ and config/ to the Pi; update the Compose stack and the vision service
+# Publish ingest; push deploy/ (including .env), vision/ and config/ to the Pi; update the Compose stack and the vision service
 [arg("target", long="target", help="SSH destination of the Pi, as user@host")]
 deploy target:
     #!/usr/bin/env bash
     set -euo pipefail
+
+    # Ingest runs on the Pi from this directory, in the stock ASP.NET runtime image.
+    dotnet publish ingest/src/TrafficCam.Ingest --configuration Release --runtime linux-arm64 \
+        --self-contained false --output deploy/ingest --nologo --verbosity quiet
 
     # Top-level directories with changed files; each is named after its service.
     changed=$(rsync -az --delete --mkpath --itemize-changes deploy/ {{target}}:trafficcam/deploy/ \
@@ -48,17 +52,21 @@ deploy target:
 sync:
     uv sync
 
+# The generated contract types are left as the generator wrote them.
+dotnet_format := "dotnet format ingest/TrafficCam.slnx --exclude src/TrafficCam.Contracts/Contracts.g.cs"
+
 # Format and apply lint fixes
 fmt:
     ruff format vision
     ruff check --fix vision
+    {{dotnet_format}}
 
 # Format check, lint and type check
-[working-directory('vision')]
 lint:
-    ruff format --check .
-    ruff check .
-    uv run pyright
+    ruff format --check vision
+    ruff check vision
+    cd vision && uv run pyright
+    {{dotnet_format}} --verify-no-changes
 
 test:
     cd vision && uv run pytest

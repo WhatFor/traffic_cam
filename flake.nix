@@ -20,6 +20,9 @@
           pkgs.dotnet-sdk_10
           pkgs.just
           pkgs.mosquitto
+          # For ingest's tests: the versions on the Pi. The Apache build has hypertables
+          # but not continuous aggregates.
+          (pkgs.postgresql_18.withPackages (p: [ p.timescaledb-apache ]))
           pkgs.rerun
           pkgs.mpv
           pkgs.ffmpeg

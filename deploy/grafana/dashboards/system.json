@@ -1080,13 +1080,300 @@
     },
     {
       "type": "row",
-      "title": "Host",
+      "title": "Ingest",
       "collapsed": false,
       "panels": [],
       "id": 18,
       "gridPos": {
         "x": 0,
         "y": 26,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Messages per minute",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "rate(trafficcam_ingest_messages_total[$__rate_interval]) * 60",
+          "editorMode": "code",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 30,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "stored: new rows. duplicate: delivered again and already stored. invalid: not a passage, logged and skipped.",
+      "id": 19,
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 6,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Insert time",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "rate(trafficcam_ingest_insert_seconds_sum[$__rate_interval]) / rate(trafficcam_ingest_insert_seconds_count[$__rate_interval])",
+          "editorMode": "code",
+          "legendFormat": "mean"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(trafficcam_ingest_insert_seconds_bucket[$__rate_interval])))",
+          "editorMode": "code",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "One batch, including the commit.",
+      "id": 20,
+      "gridPos": {
+        "x": 6,
+        "y": 27,
+        "w": 6,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Ingest state",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "up{job=\"ingest\"}",
+          "editorMode": "code",
+          "legendFormat": "up"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "trafficcam_ingest_mqtt_connected",
+          "editorMode": "code",
+          "legendFormat": "MQTT connected"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "rate(trafficcam_ingest_database_errors_total[$__rate_interval]) * 60",
+          "editorMode": "code",
+          "legendFormat": "database errors per minute"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "id": 21,
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 6,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Ingest memory",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "process_working_set_bytes{job=\"ingest\"}",
+          "editorMode": "code",
+          "legendFormat": "working set"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "id": 22,
+      "gridPos": {
+        "x": 18,
+        "y": 27,
+        "w": 6,
+        "h": 7
+      }
+    },
+    {
+      "type": "row",
+      "title": "Host",
+      "collapsed": false,
+      "panels": [],
+      "id": 23,
+      "gridPos": {
+        "x": 0,
+        "y": 34,
         "w": 24,
         "h": 1
       }
@@ -1155,10 +1442,10 @@
           "sort": "none"
         }
       },
-      "id": 19,
+      "id": 24,
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 35,
         "w": 8,
         "h": 7
       }
@@ -1216,10 +1503,10 @@
         }
       },
       "description": "Drops when the Pi throttles.",
-      "id": 20,
+      "id": 25,
       "gridPos": {
         "x": 8,
-        "y": 27,
+        "y": 35,
         "w": 8,
         "h": 7
       }
@@ -1307,10 +1594,10 @@
           "sort": "none"
         }
       },
-      "id": 21,
+      "id": 26,
       "gridPos": {
         "x": 16,
-        "y": 27,
+        "y": 35,
         "w": 8,
         "h": 7
       }
@@ -1377,10 +1664,10 @@
           "sort": "none"
         }
       },
-      "id": 22,
+      "id": 27,
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 42,
         "w": 8,
         "h": 7
       }
@@ -1438,10 +1725,10 @@
           "sort": "none"
         }
       },
-      "id": 23,
+      "id": 28,
       "gridPos": {
         "x": 8,
-        "y": 34,
+        "y": 42,
         "w": 8,
         "h": 7
       }
@@ -1499,10 +1786,10 @@
         }
       },
       "description": "Share of time the device was busy. sda is the data drive, mmcblk0 the SD card.",
-      "id": 24,
+      "id": 29,
       "gridPos": {
         "x": 16,
-        "y": 34,
+        "y": 42,
         "w": 8,
         "h": 7
       }

@@ -1,6 +1,6 @@
 # 0006. Ingest runs from a stock runtime image, with no registry
 
-Date: 2026-10-05. Status: Accepted, not yet implemented.
+Date: 2026-10-05. Status: Accepted.
 
 ## Context
 
@@ -23,3 +23,7 @@ Ingest is published on the PC, framework-dependent for `linux-arm64`, into `depl
 - The Pi needs no .NET SDK and no registry credentials.
 - The runtime image tag must be pinned and must match the .NET version ingest targets.
 - What runs is whatever was last published on the PC; there is no image tag recording the version.
+- `just deploy` publishes before it copies, so what runs is the working tree at the time of the deploy. An unchanged build leaves the files untouched, and the container is then not restarted.
+- The runtime image has no HTTP client for a health check. Ingest has a `--healthcheck` mode that asks its own `/healthz`, which costs a .NET start-up once a minute.
+- The container runs as the image's unprivileged `app` user and sees the build read-only.
+- Port 8080 is published on the Pi's loopback only, for metrics. It opens to the tailnet when ingest serves clips.

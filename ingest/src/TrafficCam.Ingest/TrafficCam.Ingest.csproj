@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <!-- The server collector keeps a heap per core, which this small service does not need. -->
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="dbup-postgresql" />
+    <PackageReference Include="MQTTnet" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="prometheus-net.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../TrafficCam.Contracts/TrafficCam.Contracts.csproj" />
+    <!-- Named by file name alone, which is what DbUp records as applied. -->
+    <EmbeddedResource Include="../../../db/migrations/*.sql" LogicalName="%(Filename)%(Extension)" />
+    <InternalsVisibleTo Include="TrafficCam.Ingest.Tests" />
+  </ItemGroup>
+</Project>

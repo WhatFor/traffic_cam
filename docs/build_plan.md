@@ -638,7 +638,7 @@ Acceptance:
   - MediaMTX, on the host network.
 
   All data volumes go under `/mnt/data`.
-- [ ] `ingest`: MQTT consumer, DbUp migrations, idempotent inserts, `/metrics`. Published on the PC into `deploy/ingest/` and run from the stock ASP.NET runtime image.
+- [x] `ingest`: MQTT consumer, DbUp migrations, idempotent inserts, `/metrics`. Published on the PC into `deploy/ingest/` and run from the stock ASP.NET runtime image.
 - [x] Grafana provisioning: datasources and dashboards for passages by movement and class, vision health, and host health.
 - [ ] Camera-moved check and its alert, plus alerts for vision down, low fps, disk and temperature or throttling.
 - [ ] Nightly `pg_dump`.

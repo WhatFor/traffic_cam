@@ -23,4 +23,4 @@ Vision publishes to a Mosquitto broker and ingest consumes from it. Topics live 
 - Every client needs the password, and any client can read or publish any topic. Per-client accounts with ACLs can be added without changing the topics.
 - Payloads need a shared definition in two languages; see 0007.
 - Publishing must never stall the frame loop. The MQTT client does its network I/O on its own thread and queues up to 10,000 messages while the broker is unreachable; beyond that, records are dropped and counted.
-- Vision publishes passages and its status. Nothing consumes them until ingest exists.
+- Vision publishes passages and its status. Ingest consumes passages; how it does so without losing any is in 0011.
