@@ -8,3 +8,6 @@ datasources:
     url: http://127.0.0.1:8428
     isDefault: true
     editable: false
+    jsonData:
+      # The scrape interval; Grafana sizes rate() windows from it.
+      timeInterval: 15s

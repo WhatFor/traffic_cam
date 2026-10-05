@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: trafficcam
+    type: file
+    # Dashboards come from the repo. Changes made in the UI cannot be saved there:
+    # export the JSON into deploy/grafana/dashboards/ and deploy.
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
