@@ -3,7 +3,7 @@
 default:
     @just --list
 
-# Push deploy/ (including .env) and vision/ to the Pi; update the Compose stack and the vision service
+# Push deploy/ (including .env), vision/ and config/ to the Pi; update the Compose stack and the vision service
 [arg("target", long="target", help="SSH destination of the Pi, as user@host")]
 deploy target:
     #!/usr/bin/env bash
@@ -14,6 +14,7 @@ deploy target:
         | awk '$1 ~ /^<f/ && $2 ~ /\// { sub(/\/.*/, "", $2); print $2 }' | sort -u)
     rsync -az --delete --mkpath --exclude .venv --exclude __pycache__ --exclude '.*_cache' \
         vision/ {{target}}:trafficcam/vision/
+    rsync -az --delete --mkpath config/ {{target}}:trafficcam/config/
 
     ssh {{target}} bash -s -- $changed <<'EOF'
     set -euo pipefail

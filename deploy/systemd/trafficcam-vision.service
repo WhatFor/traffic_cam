@@ -5,9 +5,11 @@
 Description=Traffic camera vision service
 
 [Service]
-ExecStart=%h/trafficcam/vision/.venv/bin/python -m trafficcam
+ExecStart=%h/trafficcam/vision/.venv/bin/python -m trafficcam --config %h/trafficcam/config/site.yaml
 Restart=always
 RestartSec=5
+# Status 2 means the config is invalid; restarting would not fix it.
+RestartPreventExitStatus=2
 
 [Install]
 WantedBy=default.target
