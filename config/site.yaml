@@ -6,8 +6,8 @@ camera: { id: junction-1, size: [2028, 1520], fps: 15 }
 
 inference:
   model: /usr/share/hailo-models/yolov8s_h8.hef
-  threshold: 0.3
-  classes: [car, truck, bus, motorcycle, bicycle, person]
+  threshold: 0.35
+  classes: [car, truck, bus, motorcycle, bicycle]
   crops:                                          # x, y, w, h; square, resized to 640x640
     - [480, 340, 1060, 1060]                      # junction and the three visible arms
 
