@@ -602,18 +602,18 @@ Build in this order. Each phase ends with acceptance checks that run on the real
 - [x] `justfile`: `test`, `lint`, `fmt`, `gen-contracts`, `deploy`, `replay`, `logs`, `clip`.
 - [x] Contracts v1 (passage, event, signal change, clip, status, clip command) with pydantic and C# generation.
 - [x] `site.yaml` schema, loader and hash.
-- [ ] First draft from a full-frame grab: crops, box polygon, foreground stop line, approach and exit zones.
-- [ ] ADRs: monorepo; MQTT bus; Postgres with TimescaleDB; vision in Python on the host.
+- [x] First draft from a full-frame grab: crops, box polygon, foreground stop line, approach and exit zones.
+- [x] ADRs: monorepo; MQTT bus; Postgres with TimescaleDB; vision in Python on the host.
 
 Acceptance: `just test` and `just lint` pass on the PC, and the draft config validates.
 
 ### Phase 2 — Vision core
 
-- [ ] `PiCameraSource` (main 2028×1520 YUV420, low-res 1280×960 RGB888, 15 fps) and `VideoFileSource`.
-- [ ] `HailoBackend`: crop planner, per-crop inference, merge with NMS. Uses `yolov8s_h8.hef`.
-- [ ] Tracker wrapper around `ByteTrackTracker`, dropping `tracker_id == -1`.
-- [ ] Geometry: zones, directional lines, ground point.
-- [ ] Passage builder.
+- [x] `PiCameraSource` (main 2028×1520 YUV420, low-res 1280×960 RGB888, 15 fps) and `VideoFileSource`.
+- [x] `HailoBackend`: crop planner, per-crop inference, merge with NMS. Uses `yolov8s_h8.hef`.
+- [x] Tracker wrapper around `ByteTrackTracker`, dropping `tracker_id == -1`.
+- [x] Geometry: zones, directional lines, ground point.
+- [x] Passage builder.
 - [ ] `MqttSink` (QoS 1, last-will status) and `JsonlSink`.
 - [ ] `RerunSink` behind `--debug-rerun`; `--record-tracks`.
 - [ ] Metrics endpoint, image-quality metrics, systemd unit with watchdog and time-sync wait.
