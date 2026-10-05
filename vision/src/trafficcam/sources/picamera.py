@@ -1,12 +1,14 @@
 """Live frames from the Pi camera. Only importable on the Pi: picamera2 comes from apt."""
 
+import time
 from collections.abc import Iterator
 
-import numpy as np
-import numpy.typing as npt
 from picamera2 import Picamera2  # pyright: ignore[reportMissingImports]
 from picamera2.encoders import H264Encoder  # pyright: ignore[reportMissingImports]
 from picamera2.outputs import PyavOutput  # pyright: ignore[reportMissingImports]
+
+from trafficcam.sources import Frame
+from trafficcam.sources.clock import sensor_time_to_utc
 
 # Full field of view, 2x2 binned. Left to itself, picamera2 picks a cropped
 # sensor mode when the output is small.
@@ -31,8 +33,7 @@ class PiCameraSource:
         self._bitrate = bitrate
         self._live_url = live_url
 
-    def frames(self) -> Iterator[npt.NDArray[np.uint8]]:
-        """Yield RGB frames of shape (height, width, 3) until the process stops."""
+    def frames(self) -> Iterator[Frame]:
         with Picamera2() as camera:
             config = camera.create_video_configuration(
                 main={"size": self._main_size, "format": "YUV420"},
@@ -49,5 +50,17 @@ class PiCameraSource:
             camera.start_encoder(encoder, PyavOutput(self._live_url, format="mpegts"), name="main")
 
             camera.start()
+            index = 0
             while True:
-                yield camera.capture_array("lores")
+                # One request, so the image and its metadata are the same frame.
+                request = camera.capture_request()
+                try:
+                    image = request.make_array("lores")
+                    sensor_ns = request.get_metadata()["SensorTimestamp"]
+                finally:
+                    request.release()
+                timestamp = sensor_time_to_utc(
+                    sensor_ns, time.clock_gettime_ns(time.CLOCK_BOOTTIME), time.time_ns()
+                )
+                yield Frame(index, timestamp, image)
+                index += 1

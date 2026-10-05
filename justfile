@@ -82,6 +82,14 @@ grab-frame host:
     ffmpeg -hide_banner -loglevel error -y -rtsp_transport tcp -i rtsp://{{host}}:8554/cam \
         -ss 1 -frames:v 1 -update 1 calibration/frame.png
 
+# Record the live stream to calibration/clip.mp4, without re-encoding
+[arg("host", long="host", help="Host name or address of the Pi")]
+[arg("seconds", long="seconds", help="Length of the recording")]
+grab-clip host seconds:
+    mkdir -p calibration
+    ffmpeg -hide_banner -loglevel error -y -rtsp_transport tcp -i rtsp://{{host}}:8554/cam \
+        -t {{seconds}} -c copy calibration/clip.mp4
+
 # Draw the site config's geometry over calibration/frame.png, into calibration/preview.png
 [working-directory('vision')]
 preview:
