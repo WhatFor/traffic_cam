@@ -38,5 +38,9 @@ def boxes_to_frame(boxes: npt.NDArray[np.float32], crop: Rect) -> npt.NDArray[np
 
 
 def merge(per_crop: list[sv.Detections], iou: float) -> sv.Detections:
-    """Combine detections from overlapping crops, keeping one box per object and class."""
-    return sv.Detections.merge(per_crop).with_nms(threshold=iou)
+    """Combine detections from overlapping crops, keeping one box per object.
+
+    Suppression ignores class: the model reports some vehicles (vans, mostly) under two
+    classes at once, and a tracker would follow those as two objects.
+    """
+    return sv.Detections.merge(per_crop).with_nms(threshold=iou, class_agnostic=True)

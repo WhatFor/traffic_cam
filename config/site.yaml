@@ -9,30 +9,37 @@ inference:
   threshold: 0.35
   classes: [car, truck, bus, motorcycle, bicycle]
   crops:                                          # x, y, w, h; square, resized to 640x640
-    - [480, 340, 1060, 1060]                      # junction and the three visible arms
+    - [511, 297, 1060, 1060]                      # junction and the three visible arms
+
+tracking:
+  lost_s: 2.0                     # a track survives this long without a matching detection
+  activation_threshold: 0.5       # minimum confidence to start a new track
+  high_confidence_threshold: 0.5  # below this, a detection can only continue an existing track
+  min_consecutive_frames: 3       # frames before a new track is confirmed
+  min_iou: 0.1                    # minimum overlap to match a detection to a track
 
 # The camera looks east: the foreground approach is the west arm, north is to
 # the left and the south arm is hidden behind the building on the right.
 zones:
   box_junction:                                   # right side clipped where the building hides it
-    polygon: [[928, 820], [1170, 612], [1485, 656], [1475, 752], [1445, 772], [1437, 868], [1422, 897]]
+    polygon: [[960, 776], [1204, 570], [1519, 618], [1508, 714], [1478, 734], [1469, 830], [1453, 858]]
   approach_west:
-    polygon: [[300, 1245], [315, 1150], [475, 1033], [545, 980], [680, 1003], [908, 1044], [735, 1230], [568, 1378]]
+    polygon: [[327, 1194], [343, 1099], [504, 984], [575, 932], [710, 956], [937, 1000], [762, 1184], [593, 1330]]
   exit_west:
-    polygon: [[1050, 1035], [1332, 1090], [1225, 1320], [1172, 1510], [850, 1468], [655, 1400], [805, 1240], [968, 1090]]
+    polygon: [[1079, 992], [1361, 1051], [1252, 1280], [1196, 1469], [875, 1424], [680, 1353], [832, 1195], [997, 1047]]
   approach_north:
-    polygon: [[485, 632], [775, 645], [748, 712], [485, 715]]
+    polygon: [[518, 583], [809, 599], [781, 666], [518, 666]]
   exit_north:
-    polygon: [[508, 722], [700, 742], [765, 750], [765, 800], [585, 800], [508, 765]]
+    polygon: [[540, 673], [732, 695], [797, 704], [797, 754], [617, 752], [540, 716]]
   approach_east:
-    polygon: [[1420, 588], [1500, 588], [1538, 415], [1500, 410], [1468, 470], [1436, 545]]
+    polygon: [[1455, 549], [1535, 550], [1575, 377], [1537, 372], [1504, 432], [1471, 506]]
   exit_east:
-    polygon: [[1180, 602], [1230, 535], [1360, 405], [1450, 310], [1495, 320], [1430, 440], [1385, 535], [1335, 607]]
+    polygon: [[1214, 560], [1265, 494], [1397, 365], [1488, 271], [1533, 282], [1466, 401], [1420, 496], [1369, 567]]
 
 lines:
-  stopline_west_eastbound: { points: [[678, 1003], [908, 1044]], direction: inbound }
-  stopline_west_northbound: { points: [[600, 900], [750, 900]], direction: inbound }   # left-turn slip lane
-  stopline_north: { points: [[780, 650], [710, 710]], direction: inbound }
+  stopline_west_eastbound: { points: [[708, 956], [937, 1000]], direction: inbound }
+  stopline_west_northbound: { points: [[631, 852], [781, 854]], direction: inbound }   # left-turn slip lane
+  stopline_north: { points: [[813, 604], [743, 663]], direction: inbound }
 movements: {}
 signal_heads: {}
 

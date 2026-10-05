@@ -23,6 +23,13 @@ FULL: dict[str, Any] = {
         "classes": ["car", "truck", "bus", "motorcycle", "bicycle", "person"],
         "crops": [[600, 500, 700, 700]],
     },
+    "tracking": {
+        "lost_s": 2.0,
+        "activation_threshold": 0.5,
+        "high_confidence_threshold": 0.5,
+        "min_consecutive_frames": 3,
+        "min_iou": 0.1,
+    },
     "zones": {
         "approach_south": {"polygon": [[900, 1100], [1300, 1100], [1300, 1500], [900, 1500]]},
         "exit_east": {"polygon": [[1500, 600], [2000, 600], [2000, 900]]},
@@ -96,6 +103,7 @@ def _set(path: str, value: Any) -> Callable[[dict[str, Any]], None]:
     [
         (_set("camera.fpss", 15), "fpss"),
         (_set("inference.threshold", 1.5), "threshold"),
+        (_set("tracking.lost_s", 0), "lost_s"),
         (_set("inference.classes", ["van"]), "classes"),
         (_set("inference.crops", [[600, 500, 700, 600]]), "not square"),
         (_set("inference.crops", [[1500, 500, 700, 700]]), "outside the frame"),

@@ -50,6 +50,14 @@ class Inference(_Section):
     merge_iou: float = Field(default=0.5, ge=0, le=1)
 
 
+class Tracking(_Section):
+    lost_s: PositiveFloat
+    activation_threshold: float = Field(ge=0, le=1)
+    high_confidence_threshold: float = Field(ge=0, le=1)
+    min_consecutive_frames: PositiveInt
+    min_iou: float = Field(ge=0, le=1)
+
+
 class Zone(_Section):
     polygon: list[Point] = Field(min_length=3)
 
@@ -112,6 +120,7 @@ class Clips(_Section):
 class SiteConfig(_Section):
     camera: Camera
     inference: Inference
+    tracking: Tracking
     zones: dict[str, Zone]
     lines: dict[str, Line]
     movements: dict[str, Movement]

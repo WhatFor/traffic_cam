@@ -84,17 +84,14 @@ def test_merge_collapses_the_same_object_seen_in_two_crops() -> None:
     assert sorted(merged.confidence.tolist()) == pytest.approx([0.8, 0.9])
 
 
-def test_merge_keeps_overlapping_boxes_of_different_classes() -> None:
+def test_merge_keeps_one_box_for_an_object_reported_as_two_classes() -> None:
     merged = merge(
-        [
-            detections([[100, 100, 200, 200]], [0.9], [CAR]),
-            detections([[100, 100, 200, 200]], [0.8], [BUS]),
-        ],
+        [detections([[100, 100, 200, 200], [100, 101, 200, 200]], [0.55, 0.6], [CAR, BUS])],
         iou=0.5,
     )
 
     assert merged.class_id is not None
-    assert sorted(merged.class_id.tolist()) == [CAR, BUS]
+    assert merged.class_id.tolist() == [BUS]
 
 
 def test_merge_of_empty_crops_is_empty() -> None:
