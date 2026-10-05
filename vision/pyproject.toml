@@ -13,7 +13,12 @@ dependencies = [
     "pydantic>=2",
     "pyyaml>=6",
     "rerun-sdk==0.38.1",
+    "supervision>=0.30,<0.31",
 ]
+
+[tool.uv]
+# supervision depends on PyAV too; this keeps the PyPI build off the Pi (see above).
+override-dependencies = ["av==14.2.0; platform_machine != 'aarch64'"]
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13"]
@@ -31,6 +36,8 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The PC has no OpenCV; supervision says so on import and falls back to NumPy.
+filterwarnings = ["ignore:OpenCV:UserWarning"]
 
 [tool.pyright]
 include = ["src", "tests"]

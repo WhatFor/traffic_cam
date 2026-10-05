@@ -47,6 +47,7 @@ class Inference(_Section):
     threshold: float = Field(ge=0, le=1)
     classes: list[RoadUserClass]
     crops: list[Rect]
+    merge_iou: float = Field(default=0.5, ge=0, le=1)
 
 
 class Zone(_Section):

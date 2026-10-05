@@ -287,7 +287,7 @@ All coordinates are pixels in the 2028×1520 frame. Draw polygons on a full fram
 ```yaml
 camera: { id: junction-1, size: [2028, 1520], fps: 15 }
 inference:
-  model: /usr/share/hailo-models/yolov8s_h8.hef   # fall back to _h8l
+  model: /usr/share/hailo-models/yolov8s_h8.hef
   threshold: 0.3
   classes: [car, truck, bus, motorcycle, bicycle, person]
   crops:                                          # x, y, w, h; square, upscaled to 640x640
@@ -610,7 +610,7 @@ Acceptance: `just test` and `just lint` pass on the PC, and the draft config val
 ### Phase 2 — Vision core
 
 - [ ] `PiCameraSource` (main 2028×1520 YUV420, low-res 1280×960 RGB888, 15 fps) and `VideoFileSource`.
-- [ ] `HailoBackend`: crop planner, per-crop inference, merge with NMS. Pick the `_h8` model when present.
+- [ ] `HailoBackend`: crop planner, per-crop inference, merge with NMS. Uses `yolov8s_h8.hef`.
 - [ ] Tracker wrapper around `ByteTrackTracker`, dropping `tracker_id == -1`.
 - [ ] Geometry: zones, directional lines, ground point.
 - [ ] Passage builder.

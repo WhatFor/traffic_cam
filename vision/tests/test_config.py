@@ -65,6 +65,7 @@ def test_repo_config_loads() -> None:
     config, config_hash = load_site_config(SITE_YAML)
 
     assert config.camera.size == (2028, 1520)
+    assert config.inference.merge_iou == 0.5
     assert re.fullmatch(r"sha256:[0-9a-f]{64}", config_hash)
     assert config_hash == "sha256:" + hashlib.sha256(SITE_YAML.read_bytes()).hexdigest()
 
