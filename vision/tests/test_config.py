@@ -33,8 +33,16 @@ FULL: dict[str, Any] = {
     "junction": "box_junction",
     "zones": {
         "box_junction": {"polygon": [[900, 800], [1200, 600], [1500, 650], [1400, 900]]},
-        "approach_south": {"polygon": [[900, 1100], [1300, 1100], [1300, 1500], [900, 1500]]},
-        "exit_east": {"polygon": [[1500, 600], [2000, 600], [2000, 900]]},
+        "approach_south": {
+            "role": "approach",
+            "arm": "south",
+            "polygon": [[900, 1100], [1300, 1100], [1300, 1500], [900, 1500]],
+        },
+        "exit_east": {
+            "role": "exit",
+            "arm": "east",
+            "polygon": [[1500, 600], [2000, 600], [2000, 900]],
+        },
     },
     "lines": {"stopline_south": {"points": [[900, 1100], [1300, 1100]], "direction": "inbound"}},
     "movements": {"left_turn_watch": {"from": "approach_south", "to": "exit_east"}},
@@ -107,6 +115,7 @@ def _set(path: str, value: Any) -> Callable[[dict[str, Any]], None]:
         (_set("inference.threshold", 1.5), "threshold"),
         (_set("tracking.lost_s", 0), "lost_s"),
         (_set("junction", "roundabout"), "unknown zone 'roundabout'"),
+        (_set("zones.exit_east.arm", None), "needs an arm"),
         (_set("inference.classes", ["van"]), "classes"),
         (_set("inference.crops", [[600, 500, 700, 600]]), "not square"),
         (_set("inference.crops", [[1500, 500, 700, 700]]), "outside the frame"),

@@ -20,7 +20,16 @@ SITE: dict[str, Any] = copy.deepcopy(FULL) | {
     "junction": "box",
     "zones": {
         "box": {"polygon": [[800, 400], [1200, 400], [1200, 800], [800, 800]]},
-        "approach": {"polygon": [[900, 900], [1100, 900], [1100, 1300], [900, 1300]]},
+        "approach": {
+            "role": "approach",
+            "arm": "south",
+            "polygon": [[900, 900], [1100, 900], [1100, 1300], [900, 1300]],
+        },
+        "exit": {
+            "role": "exit",
+            "arm": "north",
+            "polygon": [[900, 100], [1100, 100], [1100, 380], [900, 380]],
+        },
     },
     "lines": {"stopline": {"points": [[900, 900], [1100, 900]], "direction": "inbound"}},
     "movements": {},

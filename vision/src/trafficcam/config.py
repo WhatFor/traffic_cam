@@ -60,6 +60,15 @@ class Tracking(_Section):
 
 class Zone(_Section):
     polygon: list[Point] = Field(min_length=3)
+    # Approach and exit zones name the arm of the junction they are on.
+    role: Literal["approach", "exit"] | None = None
+    arm: str | None = None
+
+    @model_validator(mode="after")
+    def _role_needs_an_arm(self) -> Self:
+        if self.role is not None and self.arm is None:
+            raise ValueError("a zone with a role needs an arm")
+        return self
 
 
 class Line(_Section):

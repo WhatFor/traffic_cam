@@ -26,16 +26,32 @@ zones:
   box_junction:                                   # right side clipped where the building hides it
     polygon: [[960, 776], [1204, 570], [1519, 618], [1508, 714], [1478, 734], [1469, 830], [1453, 858]]
   approach_west:
+    role: approach
+    arm: west
     polygon: [[327, 1194], [343, 1099], [504, 984], [575, 932], [710, 956], [937, 1000], [762, 1184], [593, 1330]]
   exit_west:
+    role: exit
+    arm: west
     polygon: [[1079, 992], [1361, 1051], [1252, 1280], [1196, 1469], [875, 1424], [680, 1353], [832, 1195], [997, 1047]]
   approach_north:
+    role: approach
+    arm: north
     polygon: [[518, 583], [809, 599], [781, 666], [518, 666]]
   exit_north:
-    polygon: [[540, 673], [732, 695], [797, 704], [797, 754], [617, 752], [540, 716]]
+    role: exit
+    arm: north
+    polygon: [[540, 673], [732, 695], [797, 704], [797, 774], [617, 774], [540, 745]]
   approach_east:
-    polygon: [[1455, 549], [1535, 550], [1575, 377], [1537, 372], [1504, 432], [1471, 506]]
+    role: approach
+    arm: east
+    polygon: [[1435, 640], [1512, 680], [1535, 550], [1575, 377], [1537, 372], [1504, 432], [1471, 506], [1440, 590]]
+  approach_south:                                 # the arm is hidden; this is where its traffic emerges
+    role: approach
+    arm: south
+    polygon: [[1385, 690], [1510, 712], [1478, 734], [1469, 830], [1453, 858], [1440, 905], [1375, 895]]
   exit_east:
+    role: exit
+    arm: east
     polygon: [[1214, 560], [1265, 494], [1397, 365], [1488, 271], [1533, 282], [1466, 401], [1420, 496], [1369, 567]]
 
 lines:

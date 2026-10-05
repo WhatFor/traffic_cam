@@ -5,6 +5,7 @@ import rerun as rr
 import supervision as sv
 
 from trafficcam.config import SiteConfig
+from trafficcam.contracts import Passage
 from trafficcam.geometry import Observation
 from trafficcam.inference import COCO_CLASS_IDS
 from trafficcam.sources import Frame
@@ -94,3 +95,12 @@ class RerunSink:
         rr.log("camera/tracks/ids", rr.Points2D(anchors, radii=0, class_ids=ids, labels=labels))
         for crossing in observation.crossings:
             rr.log("events/crossings", rr.TextLog(f"#{crossing.track_id} crossed {crossing.line}"))
+
+    def passages(self, passages: list[Passage]) -> None:
+        for passage in passages:
+            route = passage.movement or f"{passage.entry_zone or '?'}->{passage.exit_zone or '?'}"
+            parts = [f"{passage.class_.value if passage.class_ else '?'} {route}"]
+            if passage.stopline is not None:
+                parts.append(f"crossed {passage.stopline}")
+            parts.append(f"{(passage.last_seen - passage.first_seen).total_seconds():.1f} s")
+            rr.log("events/passages", rr.TextLog(f"#{passage.track_id} " + ", ".join(parts)))

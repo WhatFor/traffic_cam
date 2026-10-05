@@ -11,6 +11,7 @@ from trafficcam.config import ConfigError, SiteConfig, load_site_config
 from trafficcam.debug.rerun_sink import RerunSink
 from trafficcam.geometry import SceneGeometry
 from trafficcam.inference import InferenceBackend
+from trafficcam.passages import PassageBuilder
 from trafficcam.sources import FrameSource
 from trafficcam.tracking.bytetrack import ByteTracker
 
@@ -63,6 +64,8 @@ def main() -> None:
     sink = RerunSink(config, LORES_SIZE)
     tracker = ByteTracker(config.tracking, config.camera.fps)
     scene = SceneGeometry(config)
+    passages = PassageBuilder(config, config_hash)
+    last_timestamp = None
     with contextlib.ExitStack() as stack:
         backend = None if args.no_inference else stack.enter_context(open_backend(config))
         for frame in open_source(config, args.video).frames():
@@ -73,9 +76,14 @@ def main() -> None:
             detections = backend.detect(frame)
             sink.detections(detections, (time.perf_counter() - started) * 1000)
             tracks = tracker.update(detections, frame.timestamp)
-            sink.observation(scene.observe(tracks, frame.timestamp))
+            observation = scene.observe(tracks, frame.timestamp)
+            sink.observation(observation)
+            sink.passages(passages.update(observation, frame.timestamp))
+            last_timestamp = frame.timestamp
 
     # Only a replay gets here. Keep serving so a viewer can still connect.
+    if last_timestamp is not None:
+        sink.passages(passages.flush(last_timestamp))
     print("replay finished; serving until interrupted", flush=True)
     with contextlib.suppress(KeyboardInterrupt):
         signal.pause()
