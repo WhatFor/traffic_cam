@@ -1452,7 +1452,7 @@
     },
     {
       "type": "timeseries",
-      "title": "CPU frequency",
+      "title": "Throttling",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -1464,9 +1464,9 @@
             "type": "prometheus",
             "uid": "victoriametrics"
           },
-          "expr": "min(node_cpu_scaling_frequency_hertz)",
+          "expr": "rpi_throttled{when=\"now\"}",
           "editorMode": "code",
-          "legendFormat": "slowest core"
+          "legendFormat": "{{condition}}"
         }
       ],
       "fieldConfig": {
@@ -1486,8 +1486,9 @@
               }
             ]
           },
-          "unit": "hertz",
-          "min": 0
+          "min": 0,
+          "max": 1,
+          "decimals": 0
         },
         "overrides": []
       },
@@ -1495,14 +1496,14 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": false
+          "showLegend": true
         },
         "tooltip": {
           "mode": "multi",
           "sort": "none"
         }
       },
-      "description": "Drops when the Pi throttles.",
+      "description": "Flags from vcgencmd get_throttled: 1 while the condition holds.",
       "id": 25,
       "gridPos": {
         "x": 8,

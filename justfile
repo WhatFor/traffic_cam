@@ -3,7 +3,7 @@
 default:
     @just --list
 
-# Publish ingest; push deploy/ (including .env), vision/ and config/ to the Pi; update the Compose stack and the vision service
+# Publish ingest; push deploy/ (including .env), vision/ and config/ to the Pi; update the Compose stack and the host services
 [arg("target", long="target", help="SSH destination of the Pi, as user@host")]
 deploy target:
     #!/usr/bin/env bash
@@ -41,10 +41,10 @@ deploy target:
     # picamera2 and the Hailo bindings come from apt, hence the system site packages.
     [[ -d .venv ]] || uv venv --python /usr/bin/python3 --system-site-packages
     uv sync --frozen --no-dev
-    install -D -m 644 ../deploy/systemd/trafficcam-vision.service ~/.config/systemd/user/trafficcam-vision.service
+    install -D -m 644 -t ~/.config/systemd/user ../deploy/systemd/*.service
     systemctl --user daemon-reload
-    systemctl --user enable trafficcam-vision
-    systemctl --user restart trafficcam-vision
+    systemctl --user enable trafficcam-vision trafficcam-throttled
+    systemctl --user restart trafficcam-vision trafficcam-throttled
     EOF
 
 # Create or update vision/.venv from the lockfile

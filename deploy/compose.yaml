@@ -119,9 +119,22 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set it in deploy/.env}
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # Used for the links in alert emails.
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: ${SMTP_HOST:?set it in deploy/.env}
+      GF_SMTP_USER: ${SMTP_USER:?set it in deploy/.env}
+      GF_SMTP_PASSWORD: ${SMTP_PASSWORD:?set it in deploy/.env}
+      # Mail providers reject a sender other than the account that logs in.
+      GF_SMTP_FROM_ADDRESS: ${SMTP_USER}
+      GF_SMTP_FROM_NAME: Traffic cam
+      GF_SMTP_STARTTLS_POLICY: MandatoryStartTLS
+      # Read by provisioning/alerting/contact-points.yaml.
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:?set it in deploy/.env}
     volumes:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - type: bind
         source: /mnt/data/grafana
@@ -160,6 +173,8 @@ services:
     command:
       - --path.rootfs=/host
       - --web.listen-address=127.0.0.1:9100
+      # Written on the host by trafficcam-throttled.service.
+      - --collector.textfile.directory=/host/dev/shm/trafficcam
     volumes:
       - /:/host:ro,rslave
     healthcheck:

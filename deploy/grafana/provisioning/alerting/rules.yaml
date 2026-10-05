@@ -1,0 +1,233 @@
+apiVersion: 1
+
+# Each rule is the same three steps: A queries VictoriaMetrics, B takes the latest
+# value of each series, C compares it with the threshold.
+groups:
+  - orgId: 1
+    name: health
+    folder: Traffic cam
+    interval: 1m
+    rules:
+      - uid: vision-down
+        title: Vision down
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Error
+        annotations:
+          summary: 'Vision has not answered a metrics scrape for 2 minutes.'
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              expr: 'up{job="vision"}'
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: low-frame-rate
+        title: Low frame rate
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'Vision is processing {{ printf "%.1f" $values.B.Value }} frames a second; it should be 15.'
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              expr: 'rate(trafficcam_vision_frames_total[1m])'
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [10] }
+
+      - uid: disk-filling
+        title: Disk filling
+        condition: C
+        for: 10m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.mountpoint }} is {{ humanizePercentage $values.B.Value }} full.'
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              expr: '1 - node_filesystem_avail_bytes{mountpoint=~"/|/mnt/data"} / node_filesystem_size_bytes{mountpoint=~"/|/mnt/data"}'
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.85] }
+
+      - uid: cpu-hot
+        title: CPU hot
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'The CPU is at {{ printf "%.1f" $values.B.Value }} C.'
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              expr: 'node_thermal_zone_temp{type="cpu-thermal"}'
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [85] }
+
+      - uid: pi-throttled
+        title: Pi throttled
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'The firmware reports under-voltage or throttling right now.'
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              expr: 'max(rpi_throttled{when="now"})'
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: ingest-down
+        title: Ingest down
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Error
+        annotations:
+          summary: 'Ingest has not answered a metrics scrape for 2 minutes. Passages are queuing in the broker.'
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              expr: 'up{job="ingest"}'
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: ingest-database-errors
+        title: Ingest database errors
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'Ingest cannot write to the database. Passages are queuing in the broker.'
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              expr: 'increase(trafficcam_ingest_database_errors_total[2m])'
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      - uid: mqtt-disconnected
+        title: MQTT disconnected
+        condition: C
+        for: 2m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.job }} is not connected to the MQTT broker.'
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              expr: '{__name__=~"trafficcam_(vision|ingest)_mqtt_connected"}'
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [1] }

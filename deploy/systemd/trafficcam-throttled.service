@@ -1,0 +1,13 @@
+# systemd user unit, installed to ~/.config/systemd/user by `just deploy`.
+# Keeps the Pi's throttling flags where node-exporter can read them.
+
+[Unit]
+Description=Traffic camera: Pi throttling flags for node-exporter
+
+[Service]
+ExecStart=/bin/sh %h/trafficcam/deploy/node-exporter/throttled.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
