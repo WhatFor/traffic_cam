@@ -8,6 +8,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from trafficcam.config import SiteConfig, load_site_config
+from trafficcam.geometry import junction_centre
+from trafficcam.geometry.lines import counted_normal
 
 GRID_PX = 100
 GRID_COLOUR = (255, 255, 255, 70)
@@ -49,14 +51,19 @@ def render(frame: Image.Image, config: SiteConfig) -> Image.Image:
         centre_y = sum(y for _, y in zone.polygon) / len(zone.polygon)
         label(centre_x - 6 * len(name), centre_y - 12, name, colour)
 
+    junction = junction_centre(config)
     for name, line in config.lines.items():
         (x1, y1), (x2, y2) = line.points
         draw.line([(x1, y1), (x2, y2)], fill=LINE_COLOUR, width=4)
-        # Arrowhead at the second point, to show the point order.
-        angle = math.atan2(y2 - y1, x2 - x1)
+        # An arrow across the line, pointing the way a crossing counts.
+        normal_x, normal_y = counted_normal(line, junction)
+        tail = ((x1 + x2) / 2 - 30 * normal_x, (y1 + y2) / 2 - 30 * normal_y)
+        tip = ((x1 + x2) / 2 + 30 * normal_x, (y1 + y2) / 2 + 30 * normal_y)
+        draw.line([tail, tip], fill=LINE_COLOUR, width=4)
+        angle = math.atan2(normal_y, normal_x)
         for side in (-0.5, 0.5):
-            tip = (x2 - 24 * math.cos(angle + side), y2 - 24 * math.sin(angle + side))
-            draw.line([(x2, y2), tip], fill=LINE_COLOUR, width=4)
+            barb = (tip[0] - 18 * math.cos(angle + side), tip[1] - 18 * math.sin(angle + side))
+            draw.line([tip, barb], fill=LINE_COLOUR, width=4)
         label(x2 + 10, y2 - 12, f"{name} ({line.direction})", LINE_COLOUR)
 
     for name, head in config.signal_heads.items():

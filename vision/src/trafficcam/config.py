@@ -64,7 +64,10 @@ class Zone(_Section):
 
 class Line(_Section):
     points: tuple[Point, Point]
+    # The way across that counts: towards the junction zone, or away from it.
     direction: Literal["inbound", "outbound"]
+    # Observations on the far side before a crossing is believed.
+    confirm_frames: PositiveInt = 2
 
 
 class Movement(_Section):
@@ -121,6 +124,7 @@ class SiteConfig(_Section):
     camera: Camera
     inference: Inference
     tracking: Tracking
+    junction: str
     zones: dict[str, Zone]
     lines: dict[str, Line]
     movements: dict[str, Movement]
@@ -158,6 +162,8 @@ class SiteConfig(_Section):
                     yield f"signal_heads.{name}.lamps.{colour} is outside the frame"
 
     def _reference_errors(self) -> Iterable[str]:
+        if self.junction not in self.zones:
+            yield f"junction names unknown zone '{self.junction}'"
         for name, movement in self.movements.items():
             for end, zone in (("from", movement.from_), ("to", movement.to)):
                 if zone not in self.zones:

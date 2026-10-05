@@ -20,6 +20,8 @@ tracking:
 
 # The camera looks east: the foreground approach is the west arm, north is to
 # the left and the south arm is hidden behind the building on the right.
+junction: box_junction            # the zone that lines' inbound and outbound are relative to
+
 zones:
   box_junction:                                   # right side clipped where the building hides it
     polygon: [[960, 776], [1204, 570], [1519, 618], [1508, 714], [1478, 734], [1469, 830], [1453, 858]]
@@ -39,7 +41,7 @@ zones:
 lines:
   stopline_west_eastbound: { points: [[708, 956], [937, 1000]], direction: inbound }
   stopline_west_northbound: { points: [[631, 852], [781, 854]], direction: inbound }   # left-turn slip lane
-  stopline_north: { points: [[813, 604], [743, 663]], direction: inbound }
+  stopline_north: { points: [[813, 604], [712, 689]], direction: inbound }
 movements: {}
 signal_heads: {}
 
