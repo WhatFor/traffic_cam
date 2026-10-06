@@ -53,16 +53,28 @@ zones:
     role: exit
     arm: east
     polygon: [[1214, 560], [1265, 494], [1397, 365], [1488, 271], [1533, 282], [1466, 401], [1420, 496], [1369, 567]]
+  exit_south:                                     # where traffic bound for the hidden arm is last seen
+    role: exit
+    arm: south
+    polygon: [[1468, 676], [1488, 660], [1512, 656], [1512, 722], [1480, 730], [1468, 716]]
 
 lines:
   stopline_west_eastbound: { points: [[708, 956], [937, 1000]], direction: inbound }
   stopline_west_northbound: { points: [[631, 852], [781, 854]], direction: inbound }   # left-turn slip lane
   stopline_north: { points: [[813, 604], [712, 689]], direction: inbound }
-movements: {}
+# Right turns, which may wait in the box for oncoming traffic.
+movements:
+  right_from_east: { from: approach_east, to: exit_north }
+  right_from_north: { from: approach_north, to: exit_west }
+  right_from_south: { from: approach_south, to: exit_east }
+  right_from_west: { from: approach_west, to: exit_south }
 signal_heads: {}
 
 detectors:
-  box_junction: { min_stationary_s: 3.0, exempt_movements: [] }
+  box_junction:
+    min_stationary_s: 3.0
+    stationary_radius_px: 10      # a standing vehicle's ground point wanders by about 4 px
+    exempt_movements: [right_from_east, right_from_north, right_from_south, right_from_west]
   red_light: { grace_s: 0.5 }
   incident: { decel_mps2: 6.0, notify_min_confidence: 0.7 }
 

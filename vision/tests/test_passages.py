@@ -1,5 +1,6 @@
 """The passage builder turns a track's life into one contract `Passage`."""
 
+import copy
 import json
 from collections.abc import Sequence
 from datetime import datetime, timedelta
@@ -127,3 +128,30 @@ def test_a_built_passage_matches_the_contract() -> None:
     (passage,), _ = run(gone(THROUGH))
 
     validator_for(Passage).validate(json.loads(passage.model_dump_json(by_alias=True)))
+
+
+def test_an_exit_on_the_arm_the_vehicle_came_in_on_does_not_count() -> None:
+    # A hidden arm has one visible patch that is both where its traffic appears and
+    # where traffic bound for it disappears.
+    site = copy.deepcopy(SITE)
+    site["zones"]["exit_back"] = {
+        "role": "exit",
+        "arm": "south",
+        "polygon": site["zones"]["approach"]["polygon"],
+    }
+    config = SiteConfig.model_validate(site)
+    scene, builder = SceneGeometry(config), PassageBuilder(config, "sha256:test")
+
+    def passages_for(path: Sequence[Step]) -> list[Passage]:
+        closed = []
+        for frame, position in enumerate(gone(path)):
+            tracks = nothing() if position is None else box(*position, CAR, track_id=7)
+            closed += builder.update(scene.observe(tracks, at(frame)), at(frame))
+        return closed
+
+    (lost_in_the_approach,) = passages_for(THROUGH[:5])
+    (through,) = passages_for(THROUGH)
+
+    assert (lost_in_the_approach.entry_zone, lost_in_the_approach.exit_zone) == ("approach", None)
+    assert lost_in_the_approach.movement is None
+    assert through.movement == "south->north"

@@ -24,10 +24,9 @@ public class ConsumerTests(Servers servers)
         await ingest.PublishAsync(payload);
         await ingest.PublishAsync(payload);
 
-        await Eventually(() => ingest.Metrics.Stored.Value + ingest.Metrics.Duplicate.Value == 2);
+        await Eventually(() => Passages(ingest).Stored + Passages(ingest).Duplicate == 2);
         Assert.Equal(1, await ingest.RowsAsync());
-        Assert.Equal(1, ingest.Metrics.Stored.Value);
-        Assert.Equal(1, ingest.Metrics.Duplicate.Value);
+        Assert.Equal((1, 1), Passages(ingest));
     }
 
     [Fact]
@@ -54,7 +53,34 @@ public class ConsumerTests(Servers servers)
         await ingest.PublishAsync(Examples.PayloadWithId(Guid.NewGuid()));
 
         await Eventually(async () => await ingest.RowsAsync() == 1);
-        Assert.Equal(1, ingest.Metrics.Invalid.Value);
+        Assert.Equal(1, ingest.Metrics.Invalid(IngestMetrics.Passage).Value);
+    }
+
+    [Fact]
+    public async Task An_event_is_stored_once_alongside_passages()
+    {
+        await using var ingest = await Ingest.StartAsync(servers);
+        var payload = Examples.EventPayloadWithId(Guid.NewGuid());
+
+        await ingest.PublishAsync(Examples.PayloadWithId(Guid.NewGuid()));
+        await ingest.PublishAsync(payload, Consumer.EventsTopic + "box_junction_stop");
+        await ingest.PublishAsync(payload, Consumer.EventsTopic + "box_junction_stop");
+
+        await Eventually(() => ingest.Metrics.Duplicate(IngestMetrics.Event).Value == 1);
+        Assert.Equal(1, await ingest.RowsAsync("events"));
+        Assert.Equal(1, await ingest.RowsAsync());
+        Assert.Equal(1, ingest.Metrics.Stored(IngestMetrics.Event).Value);
+    }
+
+    [Fact]
+    public async Task A_passage_on_an_event_topic_is_invalid()
+    {
+        await using var ingest = await Ingest.StartAsync(servers);
+
+        await ingest.PublishAsync(Examples.Payload(), Consumer.EventsTopic + "box_junction_stop");
+
+        await Eventually(() => ingest.Metrics.Invalid(IngestMetrics.Event).Value == 1);
+        Assert.Equal(0, await ingest.RowsAsync("events"));
     }
 
     [Fact]
@@ -74,6 +100,9 @@ public class ConsumerTests(Servers servers)
 
         await Eventually(async () => await ingest.RowsAsync() == 1);
     }
+
+    static (double Stored, double Duplicate) Passages(Ingest ingest) =>
+        (ingest.Metrics.Stored(IngestMetrics.Passage).Value, ingest.Metrics.Duplicate(IngestMetrics.Passage).Value);
 
     static Task Eventually(Func<bool> condition) => Eventually(() => Task.FromResult(condition()));
 
@@ -99,7 +128,7 @@ public class ConsumerTests(Servers servers)
             Options = options;
             Metrics = new IngestMetrics(Prometheus.Metrics.NewCustomRegistry());
             source = NpgsqlDataSource.Create(options.Database.ConnectionString);
-            consumer = new Consumer(options, new PassageStore(source), Metrics, NullLogger<Consumer>.Instance);
+            consumer = new Consumer(options, new RecordStore(source), Metrics, NullLogger<Consumer>.Instance);
         }
 
         public IngestOptions Options { get; }
@@ -121,7 +150,7 @@ public class ConsumerTests(Servers servers)
             return ingest;
         }
 
-        public async Task PublishAsync(byte[] payload)
+        public async Task PublishAsync(byte[] payload, string topic = Consumer.PassagesTopic)
         {
             using var client = new MqttClientFactory().CreateMqttClient();
             await client.ConnectAsync(
@@ -129,7 +158,7 @@ public class ConsumerTests(Servers servers)
                 TestContext.Current.CancellationToken);
             await client.PublishAsync(
                 new MqttApplicationMessageBuilder()
-                    .WithTopic(Consumer.PassagesTopic)
+                    .WithTopic(topic)
                     .WithPayload(payload)
                     .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                     .Build(),
@@ -138,11 +167,11 @@ public class ConsumerTests(Servers servers)
         }
 
         /// <summary>Rows in the table; -1 while the database cannot be asked.</summary>
-        public async Task<long> RowsAsync()
+        public async Task<long> RowsAsync(string table = "passages")
         {
             try
             {
-                await using var command = source.CreateCommand("SELECT count(*) FROM passages");
+                await using var command = source.CreateCommand($"SELECT count(*) FROM {table}");
                 return (long)(await command.ExecuteScalarAsync())!;
             }
             catch (NpgsqlException)

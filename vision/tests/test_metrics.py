@@ -5,7 +5,7 @@ from datetime import timedelta
 
 import numpy as np
 from test_geometry import at
-from test_pipeline import DRIVE_AND_GONE, run
+from test_pipeline import DRIVE_AND_GONE, an_event, run
 from test_sinks import free_port
 
 from trafficcam.health import metrics as metrics_module
@@ -24,7 +24,12 @@ def with_image(result: FrameResult, seconds: float, level: int) -> FrameResult:
     image = np.full((96, 128, 3), level, dtype=np.uint8)
     frame = Frame(result.frame.index, at(0) + timedelta(seconds=seconds), image)
     return FrameResult(
-        frame, result.detections, result.inference_ms, result.observation, result.passages
+        frame,
+        result.detections,
+        result.inference_ms,
+        result.observation,
+        result.passages,
+        result.events,
     )
 
 
@@ -62,6 +67,18 @@ def test_passages_are_counted_by_whether_they_have_a_movement() -> None:
     assert value(metrics, "passages_total", complete="true") == 2
     assert value(metrics, "passages_total", complete="false") == 1
     assert value(metrics, "last_passage_timestamp_seconds") == passage.ts.timestamp()
+
+
+def test_events_are_counted_by_type() -> None:
+    metrics = Metrics()
+
+    metrics.event(an_event())
+    metrics.event(an_event())
+    metrics.event(an_event("red_light"))
+
+    assert value(metrics, "events_total", type="box_junction_stop") == 2
+    assert value(metrics, "events_total", type="red_light") == 1
+    assert (value(metrics, "last_event_timestamp_seconds", type="red_light") or 0) > 0
 
 
 def test_drop_counts_and_mqtt_state_are_read_when_scraped() -> None:

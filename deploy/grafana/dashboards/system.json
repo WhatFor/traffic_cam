@@ -701,7 +701,7 @@
       "gridPos": {
         "x": 0,
         "y": 12,
-        "w": 8,
+        "w": 6,
         "h": 7
       }
     },
@@ -772,9 +772,70 @@
       },
       "id": 12,
       "gridPos": {
-        "x": 8,
+        "x": 6,
         "y": 12,
-        "w": 8,
+        "w": 6,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Events in the last hour",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "victoriametrics"
+          },
+          "expr": "increase(trafficcam_vision_events_total[1h])",
+          "editorMode": "code",
+          "legendFormat": "{{type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "Detector events raised by vision, counted over a rolling hour.",
+      "id": 13,
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 6,
         "h": 7
       }
     },
@@ -829,11 +890,11 @@
           "sort": "none"
         }
       },
-      "id": 13,
+      "id": 14,
       "gridPos": {
-        "x": 16,
+        "x": 18,
         "y": 12,
-        "w": 8,
+        "w": 6,
         "h": 7
       }
     },
@@ -890,7 +951,7 @@
         }
       },
       "description": "Mean grey level of the camera image, 0 to 255.",
-      "id": 14,
+      "id": 15,
       "gridPos": {
         "x": 0,
         "y": 19,
@@ -950,7 +1011,7 @@
         }
       },
       "description": "Variance of the Laplacian. It depends on the scene, so compare like with like.",
-      "id": 15,
+      "id": 16,
       "gridPos": {
         "x": 6,
         "y": 19,
@@ -1010,7 +1071,7 @@
           "sort": "none"
         }
       },
-      "id": 16,
+      "id": 17,
       "gridPos": {
         "x": 12,
         "y": 19,
@@ -1070,7 +1131,7 @@
           "sort": "none"
         }
       },
-      "id": 17,
+      "id": 18,
       "gridPos": {
         "x": 18,
         "y": 19,
@@ -1083,7 +1144,7 @@
       "title": "Ingest",
       "collapsed": false,
       "panels": [],
-      "id": 18,
+      "id": 19,
       "gridPos": {
         "x": 0,
         "y": 26,
@@ -1107,7 +1168,7 @@
           },
           "expr": "rate(trafficcam_ingest_messages_total[$__rate_interval]) * 60",
           "editorMode": "code",
-          "legendFormat": "{{result}}"
+          "legendFormat": "{{kind}} {{result}}"
         }
       ],
       "fieldConfig": {
@@ -1146,8 +1207,8 @@
           "sort": "none"
         }
       },
-      "description": "stored: new rows. duplicate: delivered again and already stored. invalid: not a passage, logged and skipped.",
-      "id": 19,
+      "description": "stored: new rows. duplicate: delivered again and already stored. invalid: not a valid record, logged and skipped.",
+      "id": 20,
       "gridPos": {
         "x": 0,
         "y": 27,
@@ -1218,7 +1279,7 @@
         }
       },
       "description": "One batch, including the commit.",
-      "id": 20,
+      "id": 21,
       "gridPos": {
         "x": 6,
         "y": 27,
@@ -1297,7 +1358,7 @@
           "sort": "none"
         }
       },
-      "id": 21,
+      "id": 22,
       "gridPos": {
         "x": 12,
         "y": 27,
@@ -1357,7 +1418,7 @@
           "sort": "none"
         }
       },
-      "id": 22,
+      "id": 23,
       "gridPos": {
         "x": 18,
         "y": 27,
@@ -1370,7 +1431,7 @@
       "title": "Host",
       "collapsed": false,
       "panels": [],
-      "id": 23,
+      "id": 24,
       "gridPos": {
         "x": 0,
         "y": 34,
@@ -1442,7 +1503,7 @@
           "sort": "none"
         }
       },
-      "id": 24,
+      "id": 25,
       "gridPos": {
         "x": 0,
         "y": 35,
@@ -1504,7 +1565,7 @@
         }
       },
       "description": "Flags from vcgencmd get_throttled: 1 while the condition holds.",
-      "id": 25,
+      "id": 26,
       "gridPos": {
         "x": 8,
         "y": 35,
@@ -1595,7 +1656,7 @@
           "sort": "none"
         }
       },
-      "id": 26,
+      "id": 27,
       "gridPos": {
         "x": 16,
         "y": 35,
@@ -1665,7 +1726,7 @@
           "sort": "none"
         }
       },
-      "id": 27,
+      "id": 28,
       "gridPos": {
         "x": 0,
         "y": 42,
@@ -1726,7 +1787,7 @@
           "sort": "none"
         }
       },
-      "id": 28,
+      "id": 29,
       "gridPos": {
         "x": 8,
         "y": 42,
@@ -1787,7 +1848,7 @@
         }
       },
       "description": "Share of time the device was busy. sda is the data drive, mmcblk0 the SD card.",
-      "id": 29,
+      "id": 30,
       "gridPos": {
         "x": 16,
         "y": 42,

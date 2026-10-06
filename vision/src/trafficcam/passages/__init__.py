@@ -75,6 +75,11 @@ class PassageBuilder:
     def _passage(self, track_id: int, state: _OpenPassage, closed_at: datetime) -> Passage:
         (class_id, _), *_ = state.class_counts.most_common(1)
         entry, exit_ = state.entry_zone, state.exit_zone
+        # Nothing leaves by the arm it came in on. Where an arm's approach and exit zones
+        # overlap, arriving traffic is seen in the exit zone too.
+        if entry is not None and exit_ is not None:
+            if self._zones[entry].arm == self._zones[exit_].arm:
+                exit_ = None
         movement = None
         if entry is not None and exit_ is not None:
             movement = f"{self._zones[entry].arm}->{self._zones[exit_].arm}"

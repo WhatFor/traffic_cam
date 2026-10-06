@@ -14,7 +14,7 @@ from prometheus_client import (
 from prometheus_client.core import CounterMetricFamily
 from prometheus_client.registry import Collector
 
-from trafficcam.contracts import Passage
+from trafficcam.contracts import Event, Passage
 from trafficcam.health.image_quality import measure
 from trafficcam.pipeline import FrameResult
 
@@ -76,6 +76,13 @@ class Metrics:
         self._last_passage = Gauge(
             "last_passage_timestamp_seconds", "When the latest passage closed.", **names
         )
+        self._events = Counter("events", "Detector events raised, by type.", ["type"], **names)
+        self._last_event = Gauge(
+            "last_event_timestamp_seconds",
+            "When the latest event of a type was raised.",
+            ["type"],
+            **names,
+        )
         self._mqtt_connected = Gauge(
             "mqtt_connected", "1 if connected to the MQTT broker, else 0.", **names
         )
@@ -121,6 +128,10 @@ class Metrics:
     def passage(self, passage: Passage) -> None:
         self._passages.labels(complete=str(passage.movement is not None).lower()).inc()
         self._last_passage.set(passage.ts.timestamp())
+
+    def event(self, event: Event) -> None:
+        self._events.labels(type=event.type).inc()
+        self._last_event.labels(type=event.type).set_to_current_time()
 
     def close(self) -> None:
         if self._server is not None:

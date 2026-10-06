@@ -44,6 +44,7 @@ def empty_result(index: int, timestamp: datetime) -> FrameResult:
         inference_ms=0.0,
         observation=SceneGeometry(CONFIG).observe(nothing(), timestamp),
         passages=[],
+        events=[],
     )
 
 
@@ -201,7 +202,7 @@ def test_a_missing_directory_is_waited_for_not_created(tmp_path: Path) -> None:
 
 def test_a_replay_gives_the_passages_of_the_recorded_run(tmp_path: Path) -> None:
     live, results = run(DRIVE)
-    recorded = [passage for result in results for passage in result.passages] + live.flush()
+    recorded = [passage for result in results for passage in result.passages] + live.flush()[0]
     record(tmp_path, results)
 
     replay = TrackLogReplay(sorted(tmp_path.iterdir()), CONFIG_HASH)
@@ -209,7 +210,7 @@ def test_a_replay_gives_the_passages_of_the_recorded_run(tmp_path: Path) -> None
     replayed = [
         passage for frame in replay.frames() for passage in replaying.process(frame).passages
     ]
-    replayed += replaying.flush()
+    replayed += replaying.flush()[0]
 
     assert len(recorded) == 1
     assert replayed == recorded

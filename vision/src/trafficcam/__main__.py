@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 from trafficcam.config import ConfigError, SiteConfig, load_site_config
+from trafficcam.detectors import Detector
+from trafficcam.detectors.box_junction import BoxJunctionStops
 from trafficcam.geometry import SceneGeometry
 from trafficcam.health.watchdog import Watchdog, systemd_notify
 from trafficcam.inference import InferenceBackend
@@ -73,6 +75,14 @@ def open_backend(config: SiteConfig) -> contextlib.AbstractContextManager[Infere
     return HailoBackend(config.inference, config.camera.size)
 
 
+def open_detectors(config: SiteConfig, config_hash: str) -> list[Detector]:
+    """The detectors that site.yaml has settings for."""
+    detectors: list[Detector] = []
+    if config.detectors.box_junction is not None:
+        detectors.append(BoxJunctionStops(config, config_hash))
+    return detectors
+
+
 def main() -> None:
     args = parse_args()
     try:
@@ -109,6 +119,7 @@ def main() -> None:
                 ByteTracker(config.tracking, config.camera.fps),
                 SceneGeometry(config),
                 PassageBuilder(config, config_hash),
+                open_detectors(config, config_hash),
             )
             run(source, pipeline, outputs.observers, outputs.sinks)
 

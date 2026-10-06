@@ -98,6 +98,8 @@ class SignalHead(_Section):
 class BoxJunction(_Section):
     min_stationary_s: NonNegativeFloat
     exempt_movements: list[str]
+    # How far a ground point may wander and still count as standing still.
+    stationary_radius_px: PositiveFloat = 10.0
 
 
 class RedLight(_Section):

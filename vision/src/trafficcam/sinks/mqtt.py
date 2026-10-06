@@ -9,9 +9,10 @@ from paho.mqtt.enums import CallbackAPIVersion
 from paho.mqtt.properties import Properties
 from paho.mqtt.reasoncodes import ReasonCode
 
-from trafficcam.contracts import Passage, Status, VisionState
+from trafficcam.contracts import Event, Passage, Status, VisionState
 
 PASSAGES_TOPIC = "trafficcam/v1/passages"
+EVENTS_TOPIC = "trafficcam/v1/events"  # followed by the event's type
 STATUS_TOPIC = "trafficcam/v1/status/vision"
 USERNAME = "trafficcam"
 QOS = 1
@@ -47,7 +48,13 @@ class MqttSink:
         return self._client.is_connected()
 
     def passage(self, passage: Passage) -> None:
-        info = self._client.publish(PASSAGES_TOPIC, passage.model_dump_json(by_alias=True), qos=QOS)
+        self._publish(PASSAGES_TOPIC, passage)
+
+    def event(self, event: Event) -> None:
+        self._publish(f"{EVENTS_TOPIC}/{event.type}", event)
+
+    def _publish(self, topic: str, record: Passage | Event) -> None:
+        info = self._client.publish(topic, record.model_dump_json(by_alias=True), qos=QOS)
         if info.rc == mqtt.MQTT_ERR_QUEUE_SIZE:
             self.dropped += 1
             if self.dropped % 100 == 1:

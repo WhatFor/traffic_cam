@@ -15,10 +15,11 @@ import pytest
 from paho.mqtt.enums import CallbackAPIVersion
 from test_contracts import validator_for
 from test_passages import THROUGH, gone, run
+from test_pipeline import an_event
 
-from trafficcam.contracts import Passage, Status
+from trafficcam.contracts import Event, Passage, Status
 from trafficcam.sinks.jsonl import JsonlSink
-from trafficcam.sinks.mqtt import PASSAGES_TOPIC, STATUS_TOPIC, MqttSink
+from trafficcam.sinks.mqtt import EVENTS_TOPIC, PASSAGES_TOPIC, STATUS_TOPIC, MqttSink
 from trafficcam.timesync import wait_for_clock_sync
 
 Received = tuple[str, dict]
@@ -41,6 +42,19 @@ def test_jsonl_lines_parse_back_into_the_passages_written(tmp_path: Path) -> Non
     lines = path.read_text().splitlines()
     assert [Passage.model_validate_json(line) for line in lines] == [passage, passage]
     assert '"class":' in lines[0]
+
+
+def test_jsonl_holds_events_alongside_passages(tmp_path: Path) -> None:
+    path = tmp_path / "records.jsonl"
+
+    sink = JsonlSink(path)
+    sink.passage(a_passage())
+    sink.event(an_event())
+    sink.close()
+
+    passage_line, event_line = path.read_text().splitlines()
+    assert json.loads(passage_line)["schema"] == "passage/1"
+    assert Event.model_validate_json(event_line) == an_event()
 
 
 def test_jsonl_replaces_an_existing_file(tmp_path: Path) -> None:
@@ -127,6 +141,17 @@ def test_mqtt_publishes_passages_in_the_contract_form(
 
     validator_for(Passage).validate(payload)
     assert payload["movement"] == "south->north"
+
+
+def test_mqtt_publishes_an_event_under_its_type(broker: int, received: Callable[..., dict]) -> None:
+    sink = sink_for(broker)
+    sink.event(an_event())
+
+    payload = received(f"{EVENTS_TOPIC}/box_junction_stop")
+    sink.close()
+
+    validator_for(Event).validate(payload)
+    assert payload["attrs"] == an_event().attrs
 
 
 def test_mqtt_status_is_online_then_offline_on_close(

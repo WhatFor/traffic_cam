@@ -5,7 +5,7 @@ import rerun as rr
 import supervision as sv
 
 from trafficcam.config import SiteConfig
-from trafficcam.contracts import Passage
+from trafficcam.contracts import Event, Passage
 from trafficcam.geometry import Observation
 from trafficcam.inference import CLASS_NAMES
 from trafficcam.pipeline import FrameResult
@@ -112,3 +112,10 @@ class RerunSink:
             parts.append(f"crossed {passage.stopline}")
         parts.append(f"{(passage.last_seen - passage.first_seen).total_seconds():.1f} s")
         rr.log("events/passages", rr.TextLog(f"#{passage.track_id} " + ", ".join(parts)))
+
+    def event(self, event: Event) -> None:
+        details = ", ".join(f"{key} {value}" for key, value in event.attrs.items())
+        rr.log(
+            "events/detections",
+            rr.TextLog(f"#{event.track_id} {event.type}: {details}", level=rr.TextLogLevel.WARN),
+        )

@@ -28,7 +28,7 @@ var options = builder.Configuration.Get<IngestOptions>() ?? new IngestOptions();
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton(new IngestMetrics());
 builder.Services.AddSingleton(NpgsqlDataSource.Create(options.Database.ConnectionString));
-builder.Services.AddSingleton<PassageStore>();
+builder.Services.AddSingleton<RecordStore>();
 builder.Services.AddSingleton<Consumer>();
 builder.Services.AddHostedService(services => services.GetRequiredService<Consumer>());
 

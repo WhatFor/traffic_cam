@@ -11,7 +11,10 @@ public sealed class IngestMetrics
     {
         var factory = registry is null ? Metrics.DefaultFactory : Metrics.WithCustomRegistry(registry);
         messages = factory.CreateCounter(
-            "trafficcam_ingest_messages_total", "Messages handled, by what became of them.", "result");
+            "trafficcam_ingest_messages_total",
+            "Messages handled, by kind of record and what became of them.",
+            "kind",
+            "result");
         InsertSeconds = factory.CreateHistogram(
             "trafficcam_ingest_insert_seconds",
             "Time to write one batch, including the commit.",
@@ -22,13 +25,19 @@ public sealed class IngestMetrics
             "trafficcam_ingest_mqtt_connected", "1 if connected to the MQTT broker, else 0.");
         LastStored = factory.CreateGauge(
             "trafficcam_ingest_last_stored_timestamp_seconds", "When a batch was last committed.");
-        foreach (var counter in new[] { Stored, Duplicate, Invalid })
-            counter.Inc(0);
+        foreach (var kind in new[] { Passage, Event })
+        {
+            foreach (var counter in new[] { Stored(kind), Duplicate(kind), Invalid(kind) })
+                counter.Inc(0);
+        }
     }
 
-    public Counter.Child Stored => messages.WithLabels("stored");
-    public Counter.Child Duplicate => messages.WithLabels("duplicate");
-    public Counter.Child Invalid => messages.WithLabels("invalid");
+    public const string Passage = "passage";
+    public const string Event = "event";
+
+    public Counter.Child Stored(string kind) => messages.WithLabels(kind, "stored");
+    public Counter.Child Duplicate(string kind) => messages.WithLabels(kind, "duplicate");
+    public Counter.Child Invalid(string kind) => messages.WithLabels(kind, "invalid");
     public Histogram InsertSeconds { get; }
     public Counter DatabaseErrors { get; }
     public Gauge MqttConnected { get; }
