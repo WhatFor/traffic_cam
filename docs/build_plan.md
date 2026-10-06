@@ -472,7 +472,7 @@ A single .NET 10 service, `ingest`, turns MQTT messages into database rows, serv
 ### Storage
 
 - PostgreSQL + TimescaleDB in Compose, with its data directory on the SSD (`/mnt/data/postgres`), never on the SD card. Grafana's and VictoriaMetrics' data also live under `/mnt/data`.
-- Nightly `pg_dump` to `/mnt/data/backups`, keeping 14 days. Copy one to the PC occasionally.
+- No backups. The stored data is treated as ephemeral: losing it is acceptable.
 
 ### Notifier
 
@@ -642,7 +642,6 @@ Acceptance:
 - [x] Grafana provisioning: datasources and dashboards for passages by movement and class, vision health, and host health.
 - [x] Alerts for vision down, low fps, disk and temperature or throttling.
 - [ ] Camera-moved check and its alert
-- [ ] Nightly `pg_dump`.
 
 Acceptance:
 

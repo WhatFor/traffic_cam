@@ -18,5 +18,6 @@ Passages, events and signal changes are stored in PostgreSQL with the TimescaleD
 - TimescaleDB requires the partitioning time column in every unique key, so primary keys are composite, for example `(id, first_seen)`.
 - The data directory is on the external drive, never the SD card. That drive turned out to be a USB hard disk whose synchronous writes take roughly 0.2 to 0.9 seconds each, so ingest must batch its inserts; a commit per message would not keep up.
 - Raw rows are small and kept indefinitely for now. Retention applies to clip files, not to the database.
+- There are no backups. The build plan had a nightly `pg_dump`; it was dropped on 2026-10-06 because the data is treated as ephemeral. A failed drive, a bad migration or a mistaken delete loses the history.
 - Migrations are SQL files in `db/migrations/`, embedded in ingest and applied by DbUp at startup. The first creates the `passages` hypertable; the other tables come when vision produces their records.
 - Tests run the real migrations against a throwaway PostgreSQL from the devShell, the same PostgreSQL and TimescaleDB versions as the Pi. That is the Apache-licensed TimescaleDB build, which has hypertables but not continuous aggregates; testing those on the PC will need the unfree build.
