@@ -28,5 +28,6 @@ Vision has to run unattended. Two things were missing: a way to see from outside
 - The watchdog only proves that frames are moving through the loop. A camera that delivers frames of nothing is not caught by it; that is what the image metrics and, later, alerts are for.
 - Sharpness depends on the scene, so it differs between day and night. It is useful for spotting a step change, not as an absolute value.
 - A port that is already in use stops vision from starting.
-- Not measured yet: signal-observer confidence, camera alignment, clip-buffer state. Inference time is per frame, which equals per crop while there is one crop.
+- Clips (added 2026-10-06, 0017): clips written, clips deleted and the size of the clips folder. A clip that could not be written counts as a dropped record, under `queue="clips"`.
+- Not measured yet: signal-observer confidence, camera alignment. Inference time is per frame, which equals per crop while there is one crop.
 - Dashboards and alert rules are separate work.

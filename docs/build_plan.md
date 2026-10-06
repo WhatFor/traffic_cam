@@ -212,7 +212,8 @@ Three contracts hold the system together: MQTT payloads between vision and inges
 | `trafficcam/v1/passages` | 1 | No | One completed vehicle trip | vision → ingest |
 | `trafficcam/v1/events/{type}` | 1 | No | One detector event | vision → ingest, notifier |
 | `trafficcam/v1/signals/{head_id}` | 1 | Yes | Signal state change | vision → ingest, dashboards |
-| `trafficcam/v1/clips/{clip_id}` | 1 | No | Clip finished: path, start, end, keyframe | vision → ingest, notifier |
+| `trafficcam/v1/clips/{clip_id}` | 1 | No | Clip finished: path, start, end, keyframe, and what triggered it | vision → ingest, notifier |
+| `trafficcam/v1/clips/{clip_id}/deleted` | 1 | No | Clip files deleted by retention | vision → ingest |
 | `trafficcam/v1/cmd/clip` | 1 | No | Manual clip trigger with a reason | you or tools → vision |
 | `trafficcam/v1/status/vision` | 1 | Yes | `online` / `offline` via MQTT last will | vision → monitoring |
 
@@ -271,8 +272,10 @@ CREATE TABLE signal_changes (
 SELECT create_hypertable('signal_changes', 'ts');
 
 CREATE TABLE clips (
-  id uuid PRIMARY KEY, event_id uuid, path text NOT NULL, keyframe_path text,
-  started_at timestamptz, ended_at timestamptz, bytes bigint, deleted_at timestamptz
+  id uuid PRIMARY KEY, camera text, event_id uuid, triggers jsonb NOT NULL,
+  path text NOT NULL, keyframe_path text,
+  started_at timestamptz, ended_at timestamptz, closed_at timestamptz,
+  bytes bigint, config_hash text, deleted_at timestamptz
 );
 ```
 
@@ -310,7 +313,16 @@ detectors:
   red_light: { grace_s: 0.5 }
   speed: { homography: [[...]], limit_mph: 30 }
   incident: { decel_mps2: 6.0, notify_min_confidence: 0.7 }
-clips: { dir: /mnt/data/clips, pre_s: 5, post_s: 55, retention_days: 30, max_gb: 200 }
+clips:
+  dir: /mnt/data/clips
+  pre_s: 5              # default lengths; the manual trigger uses these
+  post_s: 55
+  buffer_s: 90          # encoded video held in memory for clips to be cut from
+  max_s: 300
+  retention_days: 30
+  max_gb: 200
+  events:               # event types that trigger a clip, with their own lengths
+    red_light: { pre_s: 5, post_s: 15 }
 ```
 
 Crop sizes and positions above are placeholders; set them from a frame grab so the crops cover the junction and foreground approach with some overlap.
@@ -428,24 +440,24 @@ Notes per detector:
 
 ## Video: clips and live view
 
-One software H.264 encode of the main stream feeds both a rolling 5-second buffer for clips and the live view. The Pi 5 has no hardware H.264 encoder, so a second encode is not affordable.
+One software H.264 encode of the main stream feeds both a rolling buffer for clips and the live view. The buffer holds 90 s, not 5 s: an event is raised when its passage closes, up to a minute after the moment it describes (ADR 0017). The Pi 5 has no hardware H.264 encoder, so a second encode is not affordable.
 
 ### Encoder
 
 - 2028×1520 at 15 fps, about 6–8 Mbit/s. Measure CPU use; if it's too high, lower the bitrate or frame rate before the resolution.
 - picamera2 lets one encoder write to several outputs. Use two:
-  1. **Clip buffer**: a circular output holding at least 5 s. Start from the `pyav_circular_capture.py` example in `raspberrypi/picamera2-examples`.
+  1. **Clip buffer**: an output that keeps the last 90 s of packets in memory. A worker thread writes clips from it, so no file is written on the encode path.
   2. **Live view**: a PyAV output sending MPEG-TS to `udp://127.0.0.1:1234?pkt_size=1316`.
 - Clips stay clean, with nothing drawn on them. Overlays exist only in Rerun during development.
 
 ### Clips
 
-- On a trigger, write the 5 s pre-roll plus 55 s after to `/mnt/data/clips/YYYY/MM/DD/<clip_id>.mp4`.
-- A trigger during an open clip extends it instead of starting a new one, capped at 5 minutes.
-- Save a still frame from the event moment as `<clip_id>.jpg`, for emails.
-- When the file is closed, publish `trafficcam/v1/clips/<clip_id>` with path, start, end and still-frame path.
+- On a trigger, write from `pre_s` before the moment it is about to `post_s` after, to `/mnt/data/clips/YYYY/MM/DD/<clip_id>.mp4`. The lengths are per event type; the default is 5 s and 55 s.
+- A trigger whose window starts inside an open clip extends it instead of starting a new one, capped at 5 minutes.
+- Save a still frame from the event moment as `<clip_id>.jpg`, for emails, and the clip's record as `<clip_id>.json`.
+- When the file is closed, publish `trafficcam/v1/clips/<clip_id>` with path, start, end, still-frame path and the list of triggers: what each was and when it happened.
 - **Manual trigger**: an MQTT message on `trafficcam/v1/cmd/clip`, wrapped as `just clip "reason"`. Use it to test the whole chain.
-- **Retention**: a daily job deletes clips older than `retention_days` or, oldest first, when the folder exceeds `max_gb`. It sets `clips.deleted_at`.
+- **Retention**: vision deletes clips older than `retention_days` or, oldest first, when the folder exceeds `max_gb`, and publishes each deletion; ingest sets `clips.deleted_at`.
 
 ### Live view
 
@@ -669,9 +681,9 @@ Acceptance: the observer matches hand labels on at least 98% of observed seconds
 
 ### Phase 6 — Video
 
-- [ ] One encoder with clip-buffer and live outputs; measure CPU.
-- [ ] Clips: 5 s before plus 55 s after, extension on overlap, still frame, clip messages, retention job.
-- [ ] Manual trigger via `just clip`.
+- [x] One encoder with clip-buffer and live outputs; measure CPU.
+- [x] Clips: 5 s before plus 55 s after, extension on overlap, still frame, clip messages, retention job.
+- [x] Manual trigger via `just clip`.
 - [x] MediaMTX live view over Tailscale.
 
 Acceptance:
@@ -778,7 +790,7 @@ None of these block Phase 1; each blocks the phase noted.
 - [ ] Which exit is the left turn to watch? (Phase 4)
 - [ ] Which signal heads control which stop lines and movements? Record cycles to find out. (Phase 5)
 - [ ] The junction's speed limit; speeds are stored in km/h, and the limit and dashboards use mph. (Phase 8)
-- [ ] Clip retention: are 30 days and a 200 GB cap right? (Phase 6)
+- [x] Clip retention: are 30 days and a 200 GB cap right? (Phase 6) Yes.
 - [ ] Track-log retention: are 7 days enough? (Phase 2)
 - [ ] Is the GitHub repo private or public? It affects repo hygiene. (Phase 1)
 - [ ] Which mail provider sends the alerts? (Phase 7)

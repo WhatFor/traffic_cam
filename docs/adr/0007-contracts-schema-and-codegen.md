@@ -13,6 +13,7 @@ All payloads are defined in one file, `contracts/trafficcam.v1.schema.json`. `ju
 - Every payload carries the same envelope: `schema`, `id`, `ts`, `camera`. Data payloads produced by vision also carry `config_hash`.
 - Unknown properties are allowed, so a consumer ignores fields added later.
 - `contracts/examples/` holds one example per payload. Both test suites round-trip every example through its generated type.
+- A change that adds a required field is made in place while nothing reads the payload yet: `Clip` gained `triggers` that way on 2026-10-06, before any clip had been published (0017).
 
 ## Consequences
 

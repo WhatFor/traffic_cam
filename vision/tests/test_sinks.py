@@ -10,17 +10,28 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import paho.mqtt.client as mqtt
 import pytest
 from paho.mqtt.enums import CallbackAPIVersion
 from test_contracts import validator_for
 from test_passages import THROUGH, gone, run
-from test_pipeline import a_signal_change, an_event
+from test_pipeline import EXAMPLES, a_clip, a_signal_change, an_event
 
-from trafficcam.contracts import Event, Passage, SignalChange, Status
+from trafficcam.contracts import (
+    Clip,
+    ClipCommand,
+    ClipDeleted,
+    Event,
+    Passage,
+    SignalChange,
+    Status,
+)
 from trafficcam.sinks.jsonl import JsonlSink
 from trafficcam.sinks.mqtt import (
+    CLIP_COMMAND_TOPIC,
+    CLIPS_TOPIC,
     EVENTS_TOPIC,
     PASSAGES_TOPIC,
     SIGNALS_TOPIC,
@@ -72,6 +83,16 @@ def test_jsonl_holds_signal_changes_too(tmp_path: Path) -> None:
     sink.close()
 
     assert SignalChange.model_validate_json(path.read_text()) == a_signal_change()
+
+
+def test_jsonl_holds_clips_too(tmp_path: Path) -> None:
+    path = tmp_path / "records.jsonl"
+
+    sink = JsonlSink(path)
+    sink.clip(a_clip())
+    sink.close()
+
+    assert Clip.model_validate_json(path.read_text()) == a_clip()
 
 
 def test_jsonl_replaces_an_existing_file(tmp_path: Path) -> None:
@@ -151,7 +172,7 @@ def received(broker: int) -> Iterator[Callable[[str, str | None], dict]]:
     client.loop_stop()
 
 
-def sink_for(port: int, **kwargs: int) -> MqttSink:
+def sink_for(port: int, **kwargs: Any) -> MqttSink:
     return MqttSink(host="127.0.0.1", port=port, password="unused", camera="junction-1", **kwargs)
 
 
@@ -212,6 +233,44 @@ def test_mqtt_keeps_each_heads_latest_state_for_late_subscribers(broker: int) ->
         f"{SIGNALS_TOPIC}/far": "amber",
     }
     validator_for(SignalChange).validate(got[f"{SIGNALS_TOPIC}/near"])
+
+
+def test_mqtt_announces_a_clip_and_its_deletion(broker: int, received: Callable[..., dict]) -> None:
+    clip = a_clip()
+    deleted = ClipDeleted.model_validate({"id": clip.id, "ts": clip.ts, "camera": clip.camera})
+    sink = sink_for(broker)
+    sink.clip(clip)
+    sink.clip_deleted(deleted)
+
+    announced = received(f"{CLIPS_TOPIC}/{clip.id}")
+    gone = received(f"{CLIPS_TOPIC}/{clip.id}/deleted")
+    sink.close()
+
+    validator_for(Clip).validate(announced)
+    assert [trigger["type"] for trigger in announced["triggers"]] == ["red_light", "manual"]
+    validator_for(ClipDeleted).validate(gone)
+
+
+def test_mqtt_hands_over_clip_commands_for_its_camera(
+    broker: int, received: Callable[..., dict]
+) -> None:
+    commands: queue.Queue[ClipCommand] = queue.Queue()
+    sink = sink_for(broker, on_clip_command=commands.put)
+    received(STATUS_TOPIC, "online")
+    example = json.loads((EXAMPLES / "clip_command.json").read_text())
+
+    sender = mqtt.Client(CallbackAPIVersion.VERSION2, protocol=mqtt.MQTTv5)
+    sender.connect("127.0.0.1", broker)
+    sender.loop_start()
+    for payload in ({"reason": 1}, example | {"camera": "elsewhere"}, example):
+        sender.publish(CLIP_COMMAND_TOPIC, json.dumps(payload), qos=1).wait_for_publish(5)
+    command = commands.get(timeout=5)
+    sender.disconnect()
+    sender.loop_stop()
+    sink.close()
+
+    assert command == ClipCommand.model_validate(example)
+    assert commands.empty()
 
 
 def test_mqtt_status_is_online_then_offline_on_close(

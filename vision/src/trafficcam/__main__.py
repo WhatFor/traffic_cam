@@ -6,6 +6,7 @@ import signal
 import sys
 from pathlib import Path
 
+from trafficcam.clips import PacketRing
 from trafficcam.config import ConfigError, SiteConfig, load_site_config
 from trafficcam.detectors import Detector
 from trafficcam.detectors.banned_turn import BannedTurns
@@ -56,7 +57,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def open_source(config: SiteConfig, video: Path | None) -> FrameSource:
+def open_source(config: SiteConfig, video: Path | None, ring: PacketRing | None) -> FrameSource:
     if video is not None:
         from trafficcam.sources.video_file import VideoFileSource
 
@@ -72,6 +73,7 @@ def open_source(config: SiteConfig, video: Path | None) -> FrameSource:
         bitrate=LIVE_BITRATE,
         live_url=LIVE_URL,
         regions=config.lamp_regions(),
+        ring=ring,
     )
 
 
@@ -117,9 +119,11 @@ def main() -> None:
     notify("STATUS=running")
 
     with contextlib.ExitStack() as stack:
-        outputs = open_outputs(stack, config, config_hash, args, LORES_SIZE, watchdog)
+        # The camera's encoded video, kept for clips to be cut from.
+        ring = PacketRing(config.clips.buffer_s) if live else None
+        outputs = open_outputs(stack, config, config_hash, args, LORES_SIZE, watchdog, ring)
         replay = TrackLogReplay(args.tracks, config_hash) if args.tracks else None
-        source = replay or open_source(config, args.video)
+        source = replay or open_source(config, args.video, ring)
         if replay is not None:
             backend = replay
         elif args.no_inference:
@@ -137,7 +141,7 @@ def main() -> None:
             # A track log carries the signal states that were read when it was recorded.
             replay or LampRoiObserver(config),
         )
-        run(source, pipeline, outputs.observers, outputs.sinks)
+        run(source, pipeline, outputs.observers, outputs.sinks, outputs.recorder)
 
     if outputs.rerun is not None:
         print("replay finished; serving Rerun until interrupted", flush=True)

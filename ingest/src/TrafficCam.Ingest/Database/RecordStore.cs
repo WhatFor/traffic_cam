@@ -12,12 +12,15 @@ public sealed class Batch
     public List<Passage> Passages { get; init; } = [];
     public List<Event> Events { get; init; } = [];
     public List<SignalChange> Signals { get; init; } = [];
+    public List<Clip> Clips { get; init; } = [];
+    public List<ClipDeleted> ClipsDeleted { get; init; } = [];
 
-    public int Count => Passages.Count + Events.Count + Signals.Count;
+    public int Count => Passages.Count + Events.Count + Signals.Count + Clips.Count + ClipsDeleted.Count;
 }
 
-/// <summary>How many of the records given to the store were not already there.</summary>
-public readonly record struct Stored(int Passages, int Events, int Signals = 0);
+/// <summary>How many of the records given to the store changed something: were not already there.</summary>
+public readonly record struct Stored(
+    int Passages, int Events, int Signals = 0, int Clips = 0, int ClipsDeleted = 0);
 
 public sealed class RecordStore(NpgsqlDataSource dataSource)
 {
@@ -47,6 +50,18 @@ public sealed class RecordStore(NpgsqlDataSource dataSource)
         ON CONFLICT (id, ts) DO NOTHING
         """;
 
+    const string InsertClip = """
+        INSERT INTO clips (
+            id, camera, event_id, triggers, path, keyframe_path, started_at, ended_at, closed_at,
+            bytes, config_hash)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ON CONFLICT (id) DO NOTHING
+        """;
+
+    const string MarkClipDeleted = """
+        UPDATE clips SET deleted_at = $2 WHERE id = $1 AND deleted_at IS NULL
+        """;
+
     static readonly JsonSerializerOptions WireNames = new() { Converters = { new JsonStringEnumConverter() } };
 
     /// <summary>Writes everything in one transaction.</summary>
@@ -60,14 +75,18 @@ public sealed class RecordStore(NpgsqlDataSource dataSource)
         var passages = records.Passages.Select(Command).ToList();
         var events = records.Events.Select(Command).ToList();
         var signals = records.Signals.Select(Command).ToList();
-        foreach (var command in passages.Concat(events).Concat(signals))
+        var clips = records.Clips.Select(Command).ToList();
+        // After the clips, so one announced and deleted in the same batch ends up deleted.
+        var clipsDeleted = records.ClipsDeleted.Select(Command).ToList();
+        foreach (var command in passages.Concat(events).Concat(signals).Concat(clips).Concat(clipsDeleted))
             batch.BatchCommands.Add(command);
         await batch.ExecuteNonQueryAsync(cancellation);
         await transaction.CommitAsync(cancellation);
-        return new Stored(Inserted(passages), Inserted(events), Inserted(signals));
+        return new Stored(
+            Changed(passages), Changed(events), Changed(signals), Changed(clips), Changed(clipsDeleted));
     }
 
-    static int Inserted(List<NpgsqlBatchCommand> commands) => (int)commands.Sum(command => (long)command.RecordsAffected);
+    static int Changed(List<NpgsqlBatchCommand> commands) => (int)commands.Sum(command => (long)command.RecordsAffected);
 
     static NpgsqlBatchCommand Command(Passage passage) =>
         Command(
@@ -118,6 +137,24 @@ public sealed class RecordStore(NpgsqlDataSource dataSource)
             (float?)change.Confidence,
             change.ConfigHash);
 
+    static NpgsqlBatchCommand Command(Clip clip) =>
+        Command(
+            InsertClip,
+            clip.Id,
+            clip.Camera,
+            clip.EventId,
+            new Jsonb(clip.Triggers),
+            clip.Path,
+            clip.KeyframePath,
+            clip.StartedAt.UtcDateTime,
+            clip.EndedAt.UtcDateTime,
+            clip.Ts.UtcDateTime,
+            clip.Bytes,
+            clip.ConfigHash);
+
+    static NpgsqlBatchCommand Command(ClipDeleted deleted) =>
+        Command(MarkClipDeleted, deleted.Id, deleted.Ts.UtcDateTime);
+
     static NpgsqlBatchCommand Command(string sql, params object?[] values)
     {
         var command = new NpgsqlBatchCommand(sql);
@@ -134,6 +171,6 @@ public sealed class RecordStore(NpgsqlDataSource dataSource)
     static string? WireName<T>(T? value) where T : struct, Enum =>
         value is { } set ? JsonSerializer.SerializeToElement(set, WireNames).GetString() : null;
 
-    /// <summary>Marks a value to be written as a jsonb column.</summary>
-    readonly record struct Jsonb(IDictionary<string, object> Value);
+    /// <summary>Marks a value to be written as a jsonb column, in the contract's own JSON form.</summary>
+    readonly record struct Jsonb(object Value);
 }

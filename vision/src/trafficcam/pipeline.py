@@ -8,7 +8,8 @@ from typing import Protocol
 
 import supervision as sv
 
-from trafficcam.contracts import Event, Passage, SignalChange, SignalState
+from trafficcam.clips import ClipRecorder, NullRecorder
+from trafficcam.contracts import Clip, Event, Passage, SignalChange, SignalState
 from trafficcam.detectors import Detector
 from trafficcam.geometry import Observation, SceneGeometry
 from trafficcam.inference import InferenceBackend
@@ -103,15 +104,31 @@ class Pipeline:
         ]
 
 
+def send_clips(recorder: ClipRecorder, sinks: Sequence[EventSink]) -> None:
+    """Pass on the clips that have been finished or deleted since the last call."""
+    for record in recorder.drain():
+        for sink in sinks:
+            if isinstance(record, Clip):
+                sink.clip(record)
+            else:
+                sink.clip_deleted(record)
+
+
 def run(
     source: FrameSource,
     pipeline: Pipeline,
     observers: Sequence[FrameObserver],
     sinks: Sequence[EventSink],
+    recorder: ClipRecorder | None = None,
 ) -> None:
-    """Process every frame of `source`: results go to `observers`, records to `sinks`."""
+    """Process every frame of `source`: results go to `observers`, records to `sinks`.
+
+    An event that calls for a clip is given its clip's id on the way to the sinks.
+    """
+    clips = recorder or NullRecorder()
 
     def publish(passages: list[Passage], events: list[Event]) -> None:
+        events = [clips.for_event(event) for event in events]
         for sink in sinks:
             for passage in passages:
                 sink.passage(passage)
@@ -126,5 +143,6 @@ def run(
             for change in result.signal_changes:
                 sink.signal(change)
         publish(result.passages, result.events)
+        send_clips(clips, sinks)
     # Only a replay gets here.
     publish(*pipeline.flush())

@@ -311,6 +311,45 @@ namespace TrafficCam.Contracts
     }
 
     /// <summary>
+    /// One reason a clip was recorded: a detector event, or a manual command.
+    /// </summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "11.6.1.0 (Newtonsoft.Json v13.0.0.0)")]
+    public partial class ClipTrigger
+    {
+
+        /// <summary>
+        /// The event's type, or 'manual'.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("type")]
+        public required string Type { get; set; }
+
+        /// <summary>
+        /// When it happened.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("at")]
+        public required System.DateTimeOffset At { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("event_id")]
+        public required System.Guid? EventId { get; set; }
+
+        /// <summary>
+        /// The text of a manual command.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("reason")]
+        public required string? Reason { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    /// <summary>
     /// A clip file was closed. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}.
     /// </summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "11.6.1.0 (Newtonsoft.Json v13.0.0.0)")]
@@ -335,8 +374,17 @@ namespace TrafficCam.Contracts
         [System.Text.Json.Serialization.JsonPropertyName("config_hash")]
         public required string ConfigHash { get; set; }
 
+        /// <summary>
+        /// The first trigger's event.
+        /// </summary>
         [System.Text.Json.Serialization.JsonPropertyName("event_id")]
         public required System.Guid? EventId { get; set; }
+
+        /// <summary>
+        /// Everything the clip was recorded for, in the order it happened.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("triggers")]
+        public required System.Collections.Generic.ICollection<ClipTrigger> Triggers { get; set; }
 
         [System.Text.Json.Serialization.JsonPropertyName("path")]
         public required string Path { get; set; }
@@ -355,6 +403,39 @@ namespace TrafficCam.Contracts
 
         [System.Text.Json.Serialization.JsonPropertyName("bytes")]
         public required long Bytes { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    /// <summary>
+    /// A clip's files were deleted. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}/deleted.
+    /// </summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "11.6.1.0 (Newtonsoft.Json v13.0.0.0)")]
+    public partial class ClipDeleted
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("schema")]
+        public required string Schema { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public required System.Guid Id { get; set; }
+
+        /// <summary>
+        /// When the files were deleted.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("ts")]
+        public required System.DateTimeOffset Ts { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("camera")]
+        public required string Camera { get; set; }
 
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 

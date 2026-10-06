@@ -25,7 +25,7 @@ public sealed class IngestMetrics
             "trafficcam_ingest_mqtt_connected", "1 if connected to the MQTT broker, else 0.");
         LastStored = factory.CreateGauge(
             "trafficcam_ingest_last_stored_timestamp_seconds", "When a batch was last committed.");
-        foreach (var kind in new[] { Passage, Event, Signal })
+        foreach (var kind in new[] { Passage, Event, Signal, Clip, ClipDeleted })
         {
             foreach (var counter in new[] { Stored(kind), Duplicate(kind), Invalid(kind) })
                 counter.Inc(0);
@@ -35,6 +35,8 @@ public sealed class IngestMetrics
     public const string Passage = "passage";
     public const string Event = "event";
     public const string Signal = "signal";
+    public const string Clip = "clip";
+    public const string ClipDeleted = "clip_deleted";
 
     public Counter.Child Stored(string kind) => messages.WithLabels(kind, "stored");
     public Counter.Child Duplicate(string kind) => messages.WithLabels(kind, "duplicate");

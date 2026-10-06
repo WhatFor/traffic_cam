@@ -20,6 +20,7 @@ Grafana evaluates the alert rules and sends the notifications. Rules, the contac
 | Ingest down | no metrics scrape from ingest | 2 min |
 | Ingest database errors | ingest keeps failing to write | 5 min |
 | MQTT disconnected | vision or ingest has no broker connection | 2 min |
+| Clip write failures | vision could not write a clip in the last 15 minutes (0017) | at once |
 
 - **Temperature at 85 C, not the build plan's 80 C.** The Pi runs at 80 to 83 C as it is, so a rule at 80 would never clear. 85 C is where the firmware throttles hard, and the throttling alert covers the soft limit when it lasts.
 - **One failure, one email.** The rules about a service's behaviour stay quiet when the service is down; its "down" alert covers that.

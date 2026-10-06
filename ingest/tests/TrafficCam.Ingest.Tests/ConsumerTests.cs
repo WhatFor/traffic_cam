@@ -90,6 +90,22 @@ public class ConsumerTests(Servers servers)
     }
 
     [Fact]
+    public async Task A_clip_is_stored_and_then_marked_deleted()
+    {
+        await using var ingest = await Ingest.StartAsync(servers);
+        var id = Examples.Clip().Id;
+
+        await ingest.PublishAsync(Examples.ClipPayload(), Consumer.ClipsTopic + id);
+        await Eventually(() => ingest.Metrics.Stored(IngestMetrics.Clip).Value == 1);
+        await ingest.PublishAsync(Examples.ClipDeletedPayload(), Consumer.ClipsTopic + id + Consumer.DeletedSuffix);
+        await ingest.PublishAsync(Examples.ClipPayload(), Consumer.ClipsTopic + id + Consumer.DeletedSuffix);
+
+        await Eventually(() => ingest.Metrics.Stored(IngestMetrics.ClipDeleted).Value == 1);
+        await Eventually(() => ingest.Metrics.Invalid(IngestMetrics.ClipDeleted).Value == 1);
+        Assert.Equal(1, await ingest.RowsAsync("clips WHERE deleted_at IS NOT NULL"));
+    }
+
+    [Fact]
     public async Task A_passage_on_an_event_topic_is_invalid()
     {
         await using var ingest = await Ingest.StartAsync(servers);

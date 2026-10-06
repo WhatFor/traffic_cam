@@ -231,3 +231,31 @@ groups:
               expression: B
               conditions:
                 - evaluator: { type: lt, params: [1] }
+
+      - uid: clip-write-failures
+        title: Clip write failures
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'Vision could not write a clip. Its log says why; the clips folder may be missing or full.'
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 900, to: 0 }
+            model:
+              refId: A
+              expr: 'increase(trafficcam_vision_dropped_total{queue="clips"}[15m])'
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0] }

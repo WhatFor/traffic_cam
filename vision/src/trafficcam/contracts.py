@@ -123,6 +123,29 @@ class SignalChange(BaseModel):
     confidence: float | None = Field(..., ge=0.0, le=1.0)
 
 
+class ClipTrigger(BaseModel):
+    """
+    One reason a clip was recorded: a detector event, or a manual command.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    type: str = Field(..., pattern="^[a-z0-9_]+$")
+    """
+    The event's type, or 'manual'.
+    """
+    at: AwareDatetime
+    """
+    When it happened.
+    """
+    event_id: UUID | None
+    reason: str | None
+    """
+    The text of a manual command.
+    """
+
+
 class Clip(BaseModel):
     """
     A clip file was closed. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}.
@@ -140,6 +163,13 @@ class Clip(BaseModel):
     camera: str
     config_hash: str
     event_id: UUID | None
+    """
+    The first trigger's event.
+    """
+    triggers: list[ClipTrigger] = Field(..., min_length=1)
+    """
+    Everything the clip was recorded for, in the order it happened.
+    """
     path: str
     keyframe_path: str | None
     """
@@ -148,6 +178,23 @@ class Clip(BaseModel):
     started_at: AwareDatetime
     ended_at: AwareDatetime
     bytes: int = Field(..., ge=0)
+
+
+class ClipDeleted(BaseModel):
+    """
+    A clip's files were deleted. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}/deleted.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    schema_: Literal["clip_deleted/1"] = Field("clip_deleted/1", alias="schema")
+    id: UUID
+    ts: AwareDatetime
+    """
+    When the files were deleted.
+    """
+    camera: str
 
 
 class ClipCommand(BaseModel):

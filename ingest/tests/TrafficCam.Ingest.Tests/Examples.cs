@@ -11,6 +11,8 @@ static class Examples
     public static string PassageJson { get; } = Read("passage.json");
     public static string EventJson { get; } = Read("event.json");
     public static string SignalChangeJson { get; } = Read("signal_change.json");
+    public static string ClipJson { get; } = Read("clip.json");
+    public static string ClipDeletedJson { get; } = Read("clip_deleted.json");
 
     public static byte[] Payload(params (string Name, JsonNode? Value)[] changes) => Changed(PassageJson, changes);
 
@@ -41,6 +43,23 @@ static class Examples
     {
         Assert.True(SignalChangeParser.TryParse(SignalChangePayload(), out var change, out var error), error);
         return change;
+    }
+
+    public static byte[] ClipPayload(params (string Name, JsonNode? Value)[] changes) => Changed(ClipJson, changes);
+
+    public static byte[] ClipDeletedPayload(params (string Name, JsonNode? Value)[] changes) =>
+        Changed(ClipDeletedJson, changes);
+
+    public static Clip Clip()
+    {
+        Assert.True(ClipParser.TryParse(ClipPayload(), out var clip, out var error), error);
+        return clip;
+    }
+
+    public static ClipDeleted ClipDeleted()
+    {
+        Assert.True(ClipDeletedParser.TryParse(ClipDeletedPayload(), out var deleted, out var error), error);
+        return deleted;
     }
 
     static string Read(string file) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, file));

@@ -16,6 +16,7 @@ Ingest acknowledges each message by hand, after the database transaction that ho
 - **Invalid messages**: a payload that does not parse as the record its topic carries is logged with its content, counted, and acknowledged. Unacknowledged, it would come back for ever.
 - **Events** (added 2026-10-06) are handled exactly as passages are: one subscription to `events/+`, the same batches and transaction, and `ON CONFLICT (id, ts) DO NOTHING`. A batch can hold both kinds.
 - **Signal changes** (added 2026-10-06) likewise: one subscription to `signals/+`, into `signal_changes`. They are published retained, so ingest receives each head's latest change again whenever it subscribes; that is a duplicate and stores nothing.
+- **Clips** (added 2026-10-06, 0017): `clips/+` inserts a row into `clips`, a plain table, with `ON CONFLICT (id) DO NOTHING`. `clips/+/deleted` sets that row's `deleted_at`; a deletion for a clip that is not there, or is already marked, counts as a duplicate.
 - **Database down**: the batch is kept and retried with a growing delay, up to 30 seconds. Nothing is acknowledged meanwhile, so the broker holds everything else, up to its queue of 100,000 messages.
 - **Reconnects**: a message that arrived on an earlier connection is stored but not acknowledged on the new one; the broker sends it again and it counts as a duplicate.
 

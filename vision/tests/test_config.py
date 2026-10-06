@@ -68,6 +68,7 @@ FULL: dict[str, Any] = {
         "post_s": 55,
         "retention_days": 30,
         "max_gb": 200,
+        "events": {"red_light": {"pre_s": 5, "post_s": 15}, "incident_candidate": {}},
     },
 }
 
@@ -137,6 +138,9 @@ def _set(path: str, value: Any) -> Callable[[dict[str, Any]], None]:
         (_set("signal_heads.sh_south_primary.lamps.blue", [640, 550, 8, 8]), "lamps"),
         (_set("zones.exit_east.entry_heading", [0, 90]), "only for approach zones"),
         (_set("zones.approach_south.entry_heading", [0, 400]), "entry_heading"),
+        (_set("clips.events.red_light.pre_s", 120), "pre_s must be less than buffer_s"),
+        (_set("clips.max_s", 30), "more than max_s"),
+        (_set("clips.events.red_light.length", 20), "length"),
     ],
 )
 def test_mistakes_are_rejected(
@@ -172,3 +176,11 @@ def test_a_head_may_list_only_the_lamps_the_camera_can_see() -> None:
     assert config.signal_heads["side_on"].controls == []
     assert config.lamp_regions()["side_on/green"] == (700, 540, 3, 3)
     assert config.heads_controlling("stopline_south") == ["sh_south_primary"]
+
+
+def test_a_clip_is_as_long_as_its_event_type_says() -> None:
+    clips = SiteConfig.model_validate(FULL).clips
+
+    assert clips.lengths("red_light") == (5, 15)
+    assert clips.lengths("incident_candidate") == (5, 55)
+    assert clips.lengths() == (5, 55)

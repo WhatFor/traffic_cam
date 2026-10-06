@@ -14,8 +14,8 @@ using TrafficCam.Ingest.Messages;
 namespace TrafficCam.Ingest.Mqtt;
 
 /// <summary>
-/// Stores passages, events and signal changes from the broker. A message is acknowledged only once the transaction holding
-/// it has committed, so whatever happens to this process the broker still has what is not stored.
+/// Stores the records vision publishes: passages, events, signal changes and clips. A message is acknowledged only once
+/// the transaction holding it has committed, so whatever happens to this process the broker still has what is not stored.
 /// </summary>
 public sealed class Consumer(
     IngestOptions options, RecordStore store, IngestMetrics metrics, ILogger<Consumer> logger)
@@ -26,6 +26,9 @@ public sealed class Consumer(
     public const string EventsTopic = "trafficcam/v1/events/";
     /// <summary>Followed by the signal head's name.</summary>
     public const string SignalsTopic = "trafficcam/v1/signals/";
+    /// <summary>Followed by the clip's id, and by <see cref="DeletedSuffix"/> once its files are gone.</summary>
+    public const string ClipsTopic = "trafficcam/v1/clips/";
+    public const string DeletedSuffix = "/deleted";
     static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
     const int LoggedPayloadLength = 500;
 
@@ -83,6 +86,8 @@ public sealed class Consumer(
             .WithTopicFilter(PassagesTopic, MqttQualityOfServiceLevel.AtLeastOnce)
             .WithTopicFilter(EventsTopic + "+", MqttQualityOfServiceLevel.AtLeastOnce)
             .WithTopicFilter(SignalsTopic + "+", MqttQualityOfServiceLevel.AtLeastOnce)
+            .WithTopicFilter(ClipsTopic + "+", MqttQualityOfServiceLevel.AtLeastOnce)
+            .WithTopicFilter(ClipsTopic + "+" + DeletedSuffix, MqttQualityOfServiceLevel.AtLeastOnce)
             .Build();
 
         while (!stopping.IsCancellationRequested)
@@ -132,6 +137,8 @@ public sealed class Consumer(
             Count(IngestMetrics.Passage, records.Passages.Count, stored.Passages);
             Count(IngestMetrics.Event, records.Events.Count, stored.Events);
             Count(IngestMetrics.Signal, records.Signals.Count, stored.Signals);
+            Count(IngestMetrics.Clip, records.Clips.Count, stored.Clips);
+            Count(IngestMetrics.ClipDeleted, records.ClipsDeleted.Count, stored.ClipsDeleted);
 
             foreach (var item in batch.Where(item => item.Connection == connection))
             {
@@ -180,6 +187,18 @@ public sealed class Consumer(
             if (SignalChangeParser.TryParse(payload, out var change, out error))
                 records.Signals.Add(change);
             return (IngestMetrics.Signal, error);
+        }
+        if (topic.StartsWith(ClipsTopic, StringComparison.Ordinal))
+        {
+            if (topic.EndsWith(DeletedSuffix, StringComparison.Ordinal))
+            {
+                if (ClipDeletedParser.TryParse(payload, out var deleted, out error))
+                    records.ClipsDeleted.Add(deleted);
+                return (IngestMetrics.ClipDeleted, error);
+            }
+            if (ClipParser.TryParse(payload, out var clip, out error))
+                records.Clips.Add(clip);
+            return (IngestMetrics.Clip, error);
         }
         if (PassageParser.TryParse(payload, out var passage, out error))
             records.Passages.Add(passage);

@@ -11,13 +11,15 @@ from test_geometry import FPS, at
 from test_passages import CAR, CONFIG, LOST_FRAMES, THROUGH
 from test_signals import SIGNAL_SITE
 
+from trafficcam.clips import ClipRecord
 from trafficcam.config import SiteConfig
-from trafficcam.contracts import Event, Passage, SignalChange, SignalState
+from trafficcam.contracts import Clip, ClipCommand, Event, Passage, SignalChange, SignalState
 from trafficcam.detectors import Detector
 from trafficcam.geometry import Observation, SceneGeometry
 from trafficcam.inference import InferenceBackend
 from trafficcam.passages import PassageBuilder
 from trafficcam.pipeline import FrameResult, Pipeline
+from trafficcam.pipeline import run as run_pipeline
 from trafficcam.signals import Reading, Signals
 from trafficcam.sources import Frame
 from trafficcam.tracking.bytetrack import ByteTracker
@@ -74,6 +76,11 @@ def a_signal_change(head: str = "near", to_state: str = "red_amber") -> SignalCh
     """The contract's example signal change."""
     example = json.loads((EXAMPLES / "signal_change.json").read_text())
     return SignalChange.model_validate(example | {"head_id": head, "to_state": to_state})
+
+
+def a_clip() -> Clip:
+    """The contract's example clip."""
+    return Clip.model_validate_json((EXAMPLES / "clip.json").read_text())
 
 
 def run(script: Sequence[sv.Detections]) -> tuple[Pipeline, list[FrameResult]]:
@@ -169,3 +176,54 @@ def test_signal_states_and_changes_are_on_each_result() -> None:
     assert results[4].signals["near"] == SignalState.green
     assert results[7].signals["near"] == SignalState.amber
     assert sum(len(result.signal_changes) for result in results) == 2
+
+
+class Recording:
+    """A sink that keeps what it is given, and a recorder with one finished clip to hand over."""
+
+    def __init__(self) -> None:
+        self.events: list[Event] = []
+        self.clips: list[Clip] = []
+        self._finished: list[ClipRecord] = [a_clip()]
+
+    def for_event(self, event: Event) -> Event:
+        return event.model_copy(update={"clip_id": a_clip().id})
+
+    def command(self, command: ClipCommand) -> None: ...
+
+    def drain(self) -> list[ClipRecord]:
+        finished, self._finished = self._finished, []
+        return finished
+
+    def passage(self, passage: Passage) -> None: ...
+
+    def event(self, event: Event) -> None:
+        self.events.append(event)
+
+    def signal(self, change: SignalChange) -> None: ...
+
+    def clip(self, clip: Clip) -> None:
+        self.clips.append(clip)
+
+    def clip_deleted(self, deleted: object) -> None: ...
+
+    def close(self) -> None: ...
+
+
+class Frames:
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def frames(self) -> Iterator[Frame]:
+        return frames(self._count)
+
+
+def test_run_gives_events_their_clip_and_passes_finished_clips_on() -> None:
+    both = Recording()
+    running = pipeline(ScriptedBackend(DRIVE_AND_GONE), [EveryPassage()])
+
+    run_pipeline(Frames(len(DRIVE_AND_GONE)), running, [], [both], both)
+
+    assert [event.type for event in both.events] == ["on_frame", "on_passage"]
+    assert {event.clip_id for event in both.events} == {a_clip().id}
+    assert both.clips == [a_clip()]

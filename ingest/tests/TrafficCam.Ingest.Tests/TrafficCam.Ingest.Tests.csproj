@@ -10,5 +10,7 @@
     <Content Include="../../../contracts/examples/passage.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../contracts/examples/event.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../contracts/examples/signal_change.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../contracts/examples/clip.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../contracts/examples/clip_deleted.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

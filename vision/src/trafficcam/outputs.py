@@ -7,10 +7,13 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from trafficcam.clips import ClipRecorder, PacketRing
+from trafficcam.clips.recorder import RingBufferRecorder
+from trafficcam.clips.writer import VideoStream
 from trafficcam.config import SiteConfig
 from trafficcam.health.metrics import Metrics
 from trafficcam.health.watchdog import Watchdog
-from trafficcam.pipeline import FrameObserver
+from trafficcam.pipeline import FrameObserver, send_clips
 from trafficcam.sinks import EventSink
 from trafficcam.sinks.jsonl import JsonlSink
 from trafficcam.sinks.mqtt import MqttSink
@@ -20,7 +23,7 @@ if TYPE_CHECKING:
     from trafficcam.debug.rerun_sink import RerunSink
 
 
-def open_mqtt(config: SiteConfig) -> MqttSink:
+def open_mqtt(config: SiteConfig, recorder: ClipRecorder | None) -> MqttSink:
     password = os.environ.get("MQTT_PASSWORD")
     if not password:
         print("MQTT_PASSWORD is not set", file=sys.stderr)
@@ -30,6 +33,7 @@ def open_mqtt(config: SiteConfig) -> MqttSink:
         port=int(os.environ.get("MQTT_PORT", "1883")),
         password=password,
         camera=config.camera.id,
+        on_clip_command=None if recorder is None else recorder.command,
     )
 
 
@@ -38,6 +42,7 @@ class Outputs:
     sinks: list[EventSink]
     observers: list[FrameObserver]
     rerun: "RerunSink | None"
+    recorder: ClipRecorder | None
 
 
 def open_outputs(
@@ -47,8 +52,12 @@ def open_outputs(
     args: argparse.Namespace,
     image_size: tuple[int, int],
     watchdog: Watchdog,
+    ring: PacketRing | None = None,
 ) -> Outputs:
-    """Open everything that receives results; `stack` closes each of them on exit."""
+    """Open everything that receives results; `stack` closes each of them on exit.
+
+    With a `ring` of the camera's encoded video, clips are recorded from it.
+    """
     live = args.video is None and args.tracks is None
     sinks: list[EventSink] = []
     observers: list[FrameObserver] = []
@@ -63,8 +72,21 @@ def open_outputs(
         sinks.append(JsonlSink(args.jsonl))
         stack.callback(sinks[-1].close)
     # A replay must never reach the broker: its passages would be stored as if they were new.
+    recorder = None
+    if ring is not None:
+        width, height = config.camera.size
+        recorder = RingBufferRecorder(
+            ring,
+            config.clips,
+            VideoStream(width, height, config.camera.fps),
+            camera=config.camera.id,
+            config_hash=config_hash,
+        )
+        if metrics is not None:
+            metrics.watch_dropped("clips", lambda: recorder.failed)
+            metrics.watch_clips_folder(lambda: recorder.folder_bytes)
     if live:
-        mqtt = open_mqtt(config)
+        mqtt = open_mqtt(config, recorder)
         stack.callback(mqtt.close)
         sinks.append(mqtt)
         if metrics is not None:
@@ -93,4 +115,12 @@ def open_outputs(
         observers.append(metrics)
     # Last, so a ping means a frame went through everything above.
     observers.append(watchdog)
-    return Outputs(sinks, observers, rerun)
+    if recorder is not None:
+        # Registered last, so it runs first: a clip cut short by the shutdown is still
+        # finished and announced while the sinks are open.
+        def finish_clips() -> None:
+            recorder.close()
+            send_clips(recorder, sinks)
+
+        stack.callback(finish_clips)
+    return Outputs(sinks, observers, rerun, recorder)

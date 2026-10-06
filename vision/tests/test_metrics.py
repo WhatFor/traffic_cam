@@ -6,10 +6,10 @@ from datetime import timedelta
 
 import numpy as np
 from test_geometry import at
-from test_pipeline import DRIVE_AND_GONE, a_signal_change, an_event, run
+from test_pipeline import DRIVE_AND_GONE, a_clip, a_signal_change, an_event, run
 from test_sinks import free_port
 
-from trafficcam.contracts import SignalState
+from trafficcam.contracts import ClipDeleted, SignalState
 from trafficcam.health import metrics as metrics_module
 from trafficcam.health.metrics import Metrics
 from trafficcam.pipeline import FrameResult
@@ -155,3 +155,18 @@ def test_metrics_are_served_over_http() -> None:
 
     assert "trafficcam_vision_frames_total 1.0" in body
     assert "process_resident_memory_bytes" in body
+
+
+def test_clips_are_counted_and_their_folder_measured() -> None:
+    metrics = Metrics()
+    clip = a_clip()
+    metrics.watch_clips_folder(lambda: 45_000_000)
+    metrics.watch_dropped("clips", lambda: 2)
+
+    metrics.clip(clip)
+    metrics.clip_deleted(ClipDeleted.model_validate({"id": clip.id, "ts": clip.ts, "camera": "x"}))
+
+    assert value(metrics, "clips_total") == 1
+    assert value(metrics, "clips_deleted_total") == 1
+    assert value(metrics, "clips_bytes") == 45_000_000
+    assert value(metrics, "dropped_total", queue="clips") == 2

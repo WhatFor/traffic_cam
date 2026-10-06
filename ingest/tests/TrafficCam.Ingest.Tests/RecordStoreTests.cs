@@ -18,7 +18,7 @@ public class RecordStoreTests(Servers servers)
         Migrator.Apply(database.ConnectionString, NullLoggerFactory.Instance);
 
         await using var source = NpgsqlDataSource.Create(database.ConnectionString);
-        Assert.Equal(3L, await Scalar(source, "SELECT count(*) FROM schemaversions"));
+        Assert.Equal(4L, await Scalar(source, "SELECT count(*) FROM schemaversions"));
         Assert.Equal(
             3L,
             await Scalar(source, "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_name IN ('passages', 'events', 'signal_changes')"));
@@ -145,9 +145,71 @@ public class RecordStoreTests(Servers servers)
             await Scalar(source, "SELECT ts FROM signal_changes") as DateTime?);
     }
 
-    static async Task<object?> Scalar(NpgsqlDataSource source, string sql)
+    [Fact]
+    public async Task A_clip_is_stored_with_what_it_was_recorded_for_and_only_once()
     {
-        await using var command = source.CreateCommand(sql);
+        Assert.SkipUnless(servers.Available, "postgres or mosquitto is not installed");
+        var database = await servers.CreateDatabaseAsync();
+        await using var source = NpgsqlDataSource.Create(database.ConnectionString);
+        var store = new RecordStore(source);
+
+        var first = await store.StoreAsync(new Batch { Clips = [Examples.Clip()] }, CancellationToken.None);
+        var again = await store.StoreAsync(new Batch { Clips = [Examples.Clip()] }, CancellationToken.None);
+
+        Assert.Equal((1, 0), (first.Clips, again.Clips));
+        var row = JsonNode.Parse((string)(await Scalar(source, """
+            SELECT jsonb_build_object(
+                'id', id, 'camera', camera, 'config_hash', config_hash, 'event_id', event_id,
+                'path', path, 'keyframe_path', keyframe_path, 'bytes', bytes)::text
+            FROM clips
+            """))!)!.AsObject();
+        var sent = JsonNode.Parse(Examples.ClipJson)!.AsObject();
+        foreach (var (name, value) in row)
+            Assert.True(JsonNode.DeepEquals(sent[name], value), $"{name}: sent {sent[name]}, stored {value}");
+        foreach (var (column, field) in new[] { ("started_at", "started_at"), ("ended_at", "ended_at"), ("closed_at", "ts") })
+        {
+            Assert.Equal(
+                sent[field]!.GetValue<DateTimeOffset>().UtcDateTime,
+                await Scalar(source, $"SELECT {column} FROM clips") as DateTime?);
+        }
+        // What the clip is of, and when, can be asked of the database alone.
+        Assert.Equal(
+            "red_light at 2026-10-04 13:05:12.345+00, manual at 2026-10-04 13:05:20+00: manual test",
+            await Scalar(source, """
+                SELECT string_agg(
+                    concat_ws(': ', t->>'type' || ' at ' || (t->>'at')::timestamptz, t->>'reason'), ', ' ORDER BY t->>'at')
+                FROM clips, jsonb_array_elements(triggers) AS t
+                """, "SET TIME ZONE 'UTC'"));
+        Assert.Null(await Scalar(source, "SELECT deleted_at FROM clips"));
+    }
+
+    [Fact]
+    public async Task A_deleted_clip_keeps_its_row_and_the_time_it_went()
+    {
+        Assert.SkipUnless(servers.Available, "postgres or mosquitto is not installed");
+        var database = await servers.CreateDatabaseAsync();
+        await using var source = NpgsqlDataSource.Create(database.ConnectionString);
+        var store = new RecordStore(source);
+        var deleted = Examples.ClipDeleted();
+
+        var unknown = await store.StoreAsync(new Batch { ClipsDeleted = [deleted] }, CancellationToken.None);
+        var together = await store.StoreAsync(
+            new Batch { Clips = [Examples.Clip()], ClipsDeleted = [deleted] }, CancellationToken.None);
+        var again = await store.StoreAsync(new Batch { ClipsDeleted = [deleted] }, CancellationToken.None);
+
+        Assert.Equal((0, 1, 0), (unknown.ClipsDeleted, together.ClipsDeleted, again.ClipsDeleted));
+        Assert.Equal(deleted.Ts.UtcDateTime, await Scalar(source, "SELECT deleted_at FROM clips") as DateTime?);
+    }
+
+    static async Task<object?> Scalar(NpgsqlDataSource source, string sql, string? before = null)
+    {
+        await using var connection = await source.OpenConnectionAsync();
+        if (before is not null)
+        {
+            await using var first = new NpgsqlCommand(before, connection);
+            await first.ExecuteNonQueryAsync();
+        }
+        await using var command = new NpgsqlCommand(sql, connection);
         var value = await command.ExecuteScalarAsync();
         return value is DBNull ? null : value;
     }

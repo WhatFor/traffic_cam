@@ -1,6 +1,7 @@
 """Records published to the MQTT broker, with the service's online/offline status."""
 
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -8,12 +9,24 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from paho.mqtt.properties import Properties
 from paho.mqtt.reasoncodes import ReasonCode
+from pydantic import ValidationError
 
-from trafficcam.contracts import Event, Passage, SignalChange, Status, VisionState
+from trafficcam.contracts import (
+    Clip,
+    ClipCommand,
+    ClipDeleted,
+    Event,
+    Passage,
+    SignalChange,
+    Status,
+    VisionState,
+)
 
 PASSAGES_TOPIC = "trafficcam/v1/passages"
 EVENTS_TOPIC = "trafficcam/v1/events"  # followed by the event's type
 SIGNALS_TOPIC = "trafficcam/v1/signals"  # followed by the head's name
+CLIPS_TOPIC = "trafficcam/v1/clips"  # followed by the clip's id, and "/deleted" once it is gone
+CLIP_COMMAND_TOPIC = "trafficcam/v1/cmd/clip"
 STATUS_TOPIC = "trafficcam/v1/status/vision"
 USERNAME = "trafficcam"
 QOS = 1
@@ -23,13 +36,28 @@ MAX_QUEUED = 10_000
 CLOSE_TIMEOUT_S = 2.0
 
 
+Record = Passage | Event | SignalChange | Clip | ClipDeleted
+
+
 class MqttSink:
-    """Publishes without ever blocking the caller: paho's own thread does the network I/O."""
+    """Publishes without ever blocking the caller: paho's own thread does the network I/O.
+
+    It also listens for clip commands, and hands each one for this camera to
+    `on_clip_command`, on paho's thread.
+    """
 
     def __init__(
-        self, *, host: str, port: int, password: str, camera: str, max_queued: int = MAX_QUEUED
+        self,
+        *,
+        host: str,
+        port: int,
+        password: str,
+        camera: str,
+        max_queued: int = MAX_QUEUED,
+        on_clip_command: Callable[[ClipCommand], None] | None = None,
     ) -> None:
         self._camera = camera
+        self._on_clip_command = on_clip_command
         self.dropped = 0
         self._client = mqtt.Client(
             CallbackAPIVersion.VERSION2,
@@ -41,6 +69,7 @@ class MqttSink:
         # The broker publishes this if the connection drops without a clean disconnect.
         self._client.will_set(STATUS_TOPIC, self._status(VisionState.offline), qos=QOS, retain=True)
         self._client.on_connect = self._on_connect
+        self._client.on_message = self._on_message
         self._client.connect_async(host, port, keepalive=KEEPALIVE_S)
         self._client.loop_start()
 
@@ -58,9 +87,13 @@ class MqttSink:
         # Retained, so a new subscriber learns each head's state at once.
         self._publish(f"{SIGNALS_TOPIC}/{change.head_id}", change, retain=True)
 
-    def _publish(
-        self, topic: str, record: Passage | Event | SignalChange, retain: bool = False
-    ) -> None:
+    def clip(self, clip: Clip) -> None:
+        self._publish(f"{CLIPS_TOPIC}/{clip.id}", clip)
+
+    def clip_deleted(self, deleted: ClipDeleted) -> None:
+        self._publish(f"{CLIPS_TOPIC}/{deleted.id}/deleted", deleted)
+
+    def _publish(self, topic: str, record: Record, retain: bool = False) -> None:
         info = self._client.publish(
             topic, record.model_dump_json(by_alias=True), qos=QOS, retain=retain
         )
@@ -91,6 +124,20 @@ class MqttSink:
             print(f"MQTT connection refused: {reason_code}", flush=True)
             return
         client.publish(STATUS_TOPIC, self._status(VisionState.online), qos=QOS, retain=True)
+        # The session is not kept, so a command sent while this service was down is not
+        # acted on when it comes back.
+        if self._on_clip_command is not None:
+            client.subscribe(CLIP_COMMAND_TOPIC, qos=QOS)
+
+    def _on_message(self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
+        try:
+            command = ClipCommand.model_validate_json(message.payload)
+        except ValidationError as error:
+            print(f"invalid clip command: {error}", flush=True)
+            return
+        if command.camera == self._camera and self._on_clip_command is not None:
+            print(f"clip asked for: {command.reason}", flush=True)
+            self._on_clip_command(command)
 
     def _status(self, state: VisionState) -> str:
         status = Status.model_validate(

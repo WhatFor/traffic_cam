@@ -14,7 +14,7 @@ from prometheus_client import (
 from prometheus_client.core import CounterMetricFamily
 from prometheus_client.registry import Collector
 
-from trafficcam.contracts import Event, Passage, SignalChange, SignalState
+from trafficcam.contracts import Clip, ClipDeleted, Event, Passage, SignalChange, SignalState
 from trafficcam.health.image_quality import measure
 from trafficcam.pipeline import FrameResult
 
@@ -89,6 +89,9 @@ class Metrics:
         self._signal_unknown = Gauge(
             "signal_unknown", "1 while a signal head's state is unknown, else 0.", ["head"], **names
         )
+        self._clips = Counter("clips", "Clips written.", **names)
+        self._clips_deleted = Counter("clips_deleted", "Clips deleted by retention.", **names)
+        self._clips_bytes = Gauge("clips_bytes", "Size of the clips folder.", **names)
         self._mqtt_connected = Gauge(
             "mqtt_connected", "1 if connected to the MQTT broker, else 0.", **names
         )
@@ -104,6 +107,9 @@ class Metrics:
 
     def watch_dropped(self, queue: str, count: Callable[[], int]) -> None:
         self._dropped.counts[queue] = count
+
+    def watch_clips_folder(self, size: Callable[[], int]) -> None:
+        self._clips_bytes.set_function(lambda: float(size()))
 
     def watch_mqtt(self, connected: Callable[[], bool]) -> None:
         self._mqtt_connected.set_function(lambda: float(connected()))
@@ -143,6 +149,12 @@ class Metrics:
 
     def signal(self, change: SignalChange) -> None:
         self._signal_changes.labels(head=change.head_id).inc()
+
+    def clip(self, clip: Clip) -> None:
+        self._clips.inc()
+
+    def clip_deleted(self, deleted: ClipDeleted) -> None:
+        self._clips_deleted.inc()
 
     def close(self) -> None:
         if self._server is not None:

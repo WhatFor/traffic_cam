@@ -24,7 +24,7 @@ deploy target:
     set -euo pipefail
     cd trafficcam/deploy
     mountpoint -q /mnt/data || { echo "/mnt/data is not mounted" >&2; exit 1; }
-    mkdir -p /mnt/data/tracklogs
+    mkdir -p /mnt/data/tracklogs /mnt/data/clips
     # Config files are bind-mounted and `up` does not notice edits to them,
     # so restart the running services whose files changed.
     for svc in "$@"; do
@@ -98,6 +98,16 @@ grab-clip host seconds:
     mkdir -p calibration
     ffmpeg -hide_banner -loglevel error -y -rtsp_transport tcp -i rtsp://{{host}}:8554/cam \
         -t {{seconds}} -c copy calibration/clip.mp4
+
+# Ask the vision service for a clip and wait for it to be written; the reason is recorded with it
+[arg("host", long="host", help="Host name or address of the Pi")]
+[working-directory('vision')]
+clip host reason:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    . ../deploy/.env
+    export MQTT_PASSWORD
+    uv run python -m trafficcam.clipcmd --config ../config/site.yaml --host {{host}} {{quote(reason)}}
 
 # Draw the site config's geometry over calibration/frame.png, into calibration/preview.png
 [working-directory('vision')]

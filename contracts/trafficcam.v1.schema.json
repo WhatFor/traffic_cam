@@ -91,6 +91,17 @@
         "schema", "id", "ts", "camera", "config_hash", "head_id", "from_state", "to_state", "source", "confidence"
       ]
     },
+    "ClipTrigger": {
+      "description": "One reason a clip was recorded: a detector event, or a manual command.",
+      "type": "object",
+      "properties": {
+        "type": { "description": "The event's type, or 'manual'.", "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "at": { "description": "When it happened.", "type": "string", "format": "date-time" },
+        "event_id": { "type": ["string", "null"], "format": "uuid" },
+        "reason": { "description": "The text of a manual command.", "type": ["string", "null"] }
+      },
+      "required": ["type", "at", "event_id", "reason"]
+    },
     "Clip": {
       "description": "A clip file was closed. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}.",
       "type": "object",
@@ -100,7 +111,13 @@
         "ts": { "description": "When the file was closed.", "type": "string", "format": "date-time" },
         "camera": { "type": "string" },
         "config_hash": { "type": "string" },
-        "event_id": { "type": ["string", "null"], "format": "uuid" },
+        "event_id": { "description": "The first trigger's event.", "type": ["string", "null"], "format": "uuid" },
+        "triggers": {
+          "description": "Everything the clip was recorded for, in the order it happened.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/ClipTrigger" },
+          "minItems": 1
+        },
         "path": { "type": "string" },
         "keyframe_path": { "description": "Still frame from the event moment.", "type": ["string", "null"] },
         "started_at": { "type": "string", "format": "date-time" },
@@ -108,9 +125,20 @@
         "bytes": { "type": "integer", "format": "int64", "minimum": 0 }
       },
       "required": [
-        "schema", "id", "ts", "camera", "config_hash", "event_id", "path", "keyframe_path",
-        "started_at", "ended_at", "bytes"
+        "schema", "id", "ts", "camera", "config_hash", "event_id", "triggers", "path",
+        "keyframe_path", "started_at", "ended_at", "bytes"
       ]
+    },
+    "ClipDeleted": {
+      "description": "A clip's files were deleted. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}/deleted.",
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "const": "clip_deleted/1" },
+        "id": { "type": "string", "format": "uuid" },
+        "ts": { "description": "When the files were deleted.", "type": "string", "format": "date-time" },
+        "camera": { "type": "string" }
+      },
+      "required": ["schema", "id", "ts", "camera"]
     },
     "ClipCommand": {
       "description": "Manual clip trigger. Topic: trafficcam/v1/cmd/clip.",

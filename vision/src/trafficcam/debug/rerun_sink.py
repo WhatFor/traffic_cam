@@ -5,7 +5,7 @@ import rerun as rr
 import supervision as sv
 
 from trafficcam.config import SiteConfig
-from trafficcam.contracts import Event, Passage, SignalChange, SignalState
+from trafficcam.contracts import Clip, ClipDeleted, Event, Passage, SignalChange, SignalState
 from trafficcam.geometry import Observation
 from trafficcam.inference import CLASS_NAMES
 from trafficcam.pipeline import FrameResult
@@ -149,3 +149,10 @@ class RerunSink:
     def signal(self, change: SignalChange) -> None:
         was = change.from_state.value if change.from_state else "nothing"
         rr.log("events/signals", rr.TextLog(f"{change.head_id}: {was} -> {change.to_state.value}"))
+
+    def clip(self, clip: Clip) -> None:
+        what = ", ".join(trigger.type for trigger in clip.triggers)
+        rr.log("events/clips", rr.TextLog(f"{clip.path}: {what}"))
+
+    def clip_deleted(self, deleted: ClipDeleted) -> None:
+        pass

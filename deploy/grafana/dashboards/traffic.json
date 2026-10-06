@@ -527,6 +527,133 @@
         "w": 10,
         "h": 9
       }
+    },
+    {
+      "type": "table",
+      "title": "Latest clips",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "description": "One row for each thing a clip was recorded for. \"Into clip\" is where in the clip it happens.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "SELECT c.started_at AS \"time\", t->>'type' AS what, (t->>'at')::timestamptz AS \"happened at\",\n       round(extract(epoch FROM (t->>'at')::timestamptz - c.started_at)::numeric, 1) AS \"into clip (s)\",\n       coalesce(e.attrs->>'movement', t->>'reason') AS detail,\n       round(extract(epoch FROM c.ended_at - c.started_at)::numeric, 1) AS \"length (s)\",\n       round(c.bytes / 1e6, 1) AS \"MB\",\n       CASE WHEN c.deleted_at IS NULL THEN c.path ELSE 'deleted ' || to_char(c.deleted_at, 'YYYY-MM-DD') END AS file\nFROM clips c\nCROSS JOIN LATERAL jsonb_array_elements(c.triggers) AS t\nLEFT JOIN events e ON e.id = (t->>'event_id')::uuid AND e.ts = (t->>'at')::timestamptz\nWHERE $__timeFilter(c.started_at) ORDER BY c.started_at DESC, 3 LIMIT 100",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "minWidth": 50
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "what"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "happened at"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "into clip (s)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "detail"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "length (s)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MB"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 9
+      }
     }
   ]
 }

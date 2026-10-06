@@ -16,6 +16,7 @@ public class ExampleTests
         ["event/1"] = typeof(Event),
         ["signal_change/1"] = typeof(SignalChange),
         ["clip/1"] = typeof(Clip),
+        ["clip_deleted/1"] = typeof(ClipDeleted),
         ["clip_command/1"] = typeof(ClipCommand),
         ["status/1"] = typeof(Status),
     };
@@ -46,6 +47,8 @@ public class ExampleTests
                 foreach (var (key, value) in obj.ToList())
                     obj[key] = Normalise(value?.DeepClone());
                 return obj;
+            case JsonArray array:
+                return new JsonArray([.. array.Select(item => Normalise(item?.DeepClone()))]);
             case JsonValue value when value.TryGetValue<string>(out var text)
                 && text.Contains('T')
                 && DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var instant):

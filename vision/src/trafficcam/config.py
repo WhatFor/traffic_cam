@@ -155,12 +155,44 @@ class Detectors(_Section):
     incident: Incident | None = None
 
 
+class ClipLength(_Section):
+    pre_s: NonNegativeFloat | None = None
+    post_s: PositiveFloat | None = None
+
+
 class Clips(_Section):
     dir: Path
+    # How much is kept before and after a trigger, unless the trigger's event type says otherwise.
     pre_s: NonNegativeFloat
     post_s: PositiveFloat
+    # Encoded video held in memory. An event is raised when its passage closes, which can be
+    # a minute after the moment it describes, and the clip has to reach back to that moment.
+    buffer_s: PositiveFloat = 90
+    # Triggers that overlap extend a clip, up to this length.
+    max_s: PositiveFloat = 300
     retention_days: PositiveInt
     max_gb: PositiveFloat
+    # The event types that trigger a clip, each with its own lengths if it gives them.
+    events: dict[str, ClipLength] = {}
+
+    def lengths(self, event_type: str | None = None) -> tuple[float, float]:
+        """Seconds kept before and after a trigger of this event type, or a manual one."""
+        own = self.events.get(event_type, ClipLength()) if event_type else ClipLength()
+        return (
+            self.pre_s if own.pre_s is None else own.pre_s,
+            self.post_s if own.post_s is None else own.post_s,
+        )
+
+    @model_validator(mode="after")
+    def _check_lengths(self) -> Self:
+        for name in (None, *self.events):
+            pre_s, post_s = self.lengths(name)
+            where = f"events.{name}" if name else "the default"
+            if pre_s >= self.buffer_s:
+                raise ValueError(f"{where}: pre_s must be less than buffer_s")
+            if pre_s + post_s > self.max_s:
+                raise ValueError(f"{where}: pre_s plus post_s is more than max_s")
+        return self
 
 
 class SiteConfig(_Section):
