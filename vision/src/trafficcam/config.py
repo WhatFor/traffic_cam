@@ -3,7 +3,7 @@
 import hashlib
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 import yaml
 from pydantic import (
@@ -58,17 +58,33 @@ class Tracking(_Section):
     min_iou: float = Field(ge=0, le=1)
 
 
+# Degrees anticlockwise from image-right: 90 is up the image, 180 is to the left.
+Heading = Annotated[float, Field(ge=0, lt=360)]
+
+
 class Zone(_Section):
     polygon: list[Point] = Field(min_length=3)
     # Approach and exit zones name the arm of the junction they are on.
     role: Literal["approach", "exit"] | None = None
     arm: str | None = None
+    # For an approach that shares its patch of road with another arm's traffic: the zone
+    # is a track's entry only if the track is heading within this range, from the first
+    # to the second anticlockwise, when it is first seen there.
+    entry_heading: tuple[Heading, Heading] | None = None
 
     @model_validator(mode="after")
-    def _role_needs_an_arm(self) -> Self:
+    def _check_role(self) -> Self:
         if self.role is not None and self.arm is None:
             raise ValueError("a zone with a role needs an arm")
+        if self.entry_heading is not None and self.role != "approach":
+            raise ValueError("entry_heading is only for approach zones")
         return self
+
+    def accepts_heading(self, heading: float) -> bool:
+        if self.entry_heading is None:
+            return True
+        low, high = self.entry_heading
+        return low <= heading <= high if low <= high else heading >= low or heading <= high
 
 
 class Line(_Section):
@@ -102,6 +118,11 @@ class BoxJunction(_Section):
     stationary_radius_px: PositiveFloat = 10.0
 
 
+class BannedTurns(_Section):
+    # Names from `movements`: each passage that makes one raises an event.
+    movements: list[str]
+
+
 class RedLight(_Section):
     grace_s: NonNegativeFloat
 
@@ -118,6 +139,7 @@ class Incident(_Section):
 
 class Detectors(_Section):
     box_junction: BoxJunction | None = None
+    banned_turns: BannedTurns | None = None
     red_light: RedLight | None = None
     speed: Speed | None = None
     incident: Incident | None = None
@@ -183,11 +205,15 @@ class SiteConfig(_Section):
             for target in head.controls:
                 if target not in self.lines and target not in self.movements:
                     yield f"signal_heads.{name}.controls names unknown line or movement '{target}'"
+        named = {}
         if self.detectors.box_junction is not None:
-            for movement in self.detectors.box_junction.exempt_movements:
+            named["box_junction.exempt_movements"] = self.detectors.box_junction.exempt_movements
+        if self.detectors.banned_turns is not None:
+            named["banned_turns.movements"] = self.detectors.banned_turns.movements
+        for section, movements in named.items():
+            for movement in movements:
                 if movement not in self.movements:
-                    section = "detectors.box_junction.exempt_movements"
-                    yield f"{section} names unknown movement '{movement}'"
+                    yield f"detectors.{section} names unknown movement '{movement}'"
 
 
 def load_site_config(path: Path) -> tuple[SiteConfig, str]:

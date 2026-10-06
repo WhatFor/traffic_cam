@@ -4,6 +4,7 @@ import copy
 import json
 from collections.abc import Sequence
 from datetime import datetime, timedelta
+from typing import Any
 
 import numpy as np
 import supervision as sv
@@ -155,3 +156,40 @@ def test_an_exit_on_the_arm_the_vehicle_came_in_on_does_not_count() -> None:
     assert (lost_in_the_approach.entry_zone, lost_in_the_approach.exit_zone) == ("approach", None)
     assert lost_in_the_approach.movement is None
     assert through.movement == "south->north"
+
+
+# One patch of road where two arms' traffic first appears, told apart by heading: up the
+# image is the south arm as before; leftwards is a second arm, "east".
+SHARED: dict[str, Any] = copy.deepcopy(SITE)
+SHARED["zones"]["approach"]["entry_heading"] = [45, 135]
+SHARED["zones"]["approach_side"] = {
+    "role": "approach",
+    "arm": "east",
+    "entry_heading": [135, 225],
+    "polygon": SHARED["zones"]["approach"]["polygon"],
+}
+SHARED_CONFIG = SiteConfig.model_validate(SHARED)
+
+
+def entry_of(path: Sequence[Step]) -> str | None:
+    scene, builder = SceneGeometry(SHARED_CONFIG), PassageBuilder(SHARED_CONFIG, "sha256:test")
+    closed = []
+    for frame, position in enumerate(gone(path)):
+        tracks = nothing() if position is None else box(*position, CAR, track_id=7)
+        closed += builder.update(scene.observe(tracks, at(frame)), at(frame))
+    (passage,) = closed
+    return passage.entry_zone
+
+
+def test_a_shared_approach_is_decided_by_the_heading_at_first_sight() -> None:
+    leftwards = [(1090.0 - 10 * frame, 1000.0) for frame in range(15)]
+    diagonal = [(1000.0 + 5 * frame, 1000.0 + 5 * frame) for frame in range(15)]
+
+    assert entry_of(THROUGH) == "approach"
+    assert entry_of(leftwards) == "approach_side"
+    # Heading down and to the right fits neither zone.
+    assert entry_of(diagonal) is None
+
+
+def test_a_track_too_brief_to_have_a_heading_gets_no_entry() -> None:
+    assert entry_of(THROUGH[:3]) is None

@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 import yaml
 
-from trafficcam.config import ConfigError, load_site_config
+from trafficcam.config import ConfigError, Zone, load_site_config
 
 SITE_YAML = Path(__file__).parents[2] / "config" / "site.yaml"
 
@@ -125,6 +125,9 @@ def _set(path: str, value: Any) -> Callable[[dict[str, Any]], None]:
         (_set("movements.left_turn_watch.to", "exit_west"), "unknown zone 'exit_west'"),
         (_set("signal_heads.sh_south_primary.controls", ["stopline_north"]), "stopline_north"),
         (_set("detectors.box_junction.exempt_movements", ["right_turn"]), "right_turn"),
+        (_set("detectors.banned_turns", {"movements": ["no_such_turn"]}), "no_such_turn"),
+        (_set("zones.exit_east.entry_heading", [0, 90]), "only for approach zones"),
+        (_set("zones.approach_south.entry_heading", [0, 400]), "entry_heading"),
     ],
 )
 def test_mistakes_are_rejected(
@@ -140,3 +143,12 @@ def test_mistakes_are_rejected(
 def test_missing_file_is_a_config_error(tmp_path: Path) -> None:
     with pytest.raises(ConfigError):
         load_site_config(tmp_path / "absent.yaml")
+
+
+def test_an_entry_heading_range_can_wrap_past_zero() -> None:
+    polygon = [(0, 0), (10, 0), (10, 10)]
+    plain = Zone(polygon=polygon, role="approach", arm="east", entry_heading=(120, 200))
+    wrapped = Zone(polygon=polygon, role="approach", arm="east", entry_heading=(350, 20))
+
+    assert [plain.accepts_heading(h) for h in (119, 120, 200, 201)] == [False, True, True, False]
+    assert [wrapped.accepts_heading(h) for h in (349, 355, 10, 21)] == [False, True, True, False]

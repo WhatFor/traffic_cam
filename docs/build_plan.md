@@ -651,7 +651,7 @@ Acceptance:
 
 ### Phase 4 — First detectors
 
-- [ ] Box junction stop, with the right-turn exemption.
+- [x] Box junction stop, with the right-turn exemption.
 - [ ] Watched left turn, plus a turning-movements dashboard.
 - [ ] Fixture tests for both, from real track logs.
 

@@ -17,7 +17,11 @@ Dashboards are JSON files in `deploy/grafana/dashboards/`, loaded by a file prov
 
 The first dashboard, System, shows vision's metrics (0009) and a row of host metrics from node-exporter. The build plan lists vision health and host health as two dashboards; they are one until there is enough on it to split.
 
+A second dashboard, Traffic (`/d/traffic`), reads passages and events from TimescaleDB through a PostgreSQL datasource provisioned the same way. Its queries bucket the hypertables directly; the build plan's continuous aggregates wait until the tables are large enough to need them.
+
 ## Consequences
+
+- Grafana connects to the database as its owner, with the password from `deploy/.env`. Anyone who can edit a panel's query can change data. A read-only role would close that; nobody but the owner uses this Grafana.
 
 - A dashboard edited in the UI and not exported is lost on the next reload of the page.
 - Removing a file from the repo removes the dashboard from Grafana.

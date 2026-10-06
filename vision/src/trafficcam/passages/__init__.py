@@ -1,5 +1,6 @@
 """Passages: one record per road user's trip through the junction."""
 
+import math
 import uuid
 from collections import Counter
 from collections.abc import Callable
@@ -11,6 +12,11 @@ from trafficcam.contracts import Passage
 from trafficcam.geometry import Crossing, Observation
 from trafficcam.inference import CLASS_NAMES
 
+# A heading is taken from where a track was first seen in a zone to where it is once it
+# has been followed for this long and has moved this far; less than that is mostly jitter.
+HEADING_AFTER = timedelta(seconds=0.5)
+HEADING_MIN_PX = 20.0
+
 
 @dataclass(slots=True)
 class _OpenPassage:
@@ -21,6 +27,9 @@ class _OpenPassage:
     exit_zone: str | None = None
     crossing: Crossing | None = None
     seen_in_a_zone: bool = False
+    # Approach zones that depend on heading: when and where the track was first seen in
+    # each, or None once the zone has been ruled out.
+    first_in: dict[str, tuple[datetime, float, float] | None] = field(default_factory=dict)
 
 
 class PassageBuilder:
@@ -42,18 +51,43 @@ class PassageBuilder:
             state = self._open.setdefault(int(track_id), _OpenPassage(timestamp, timestamp))
             state.last_seen = timestamp
             state.class_counts[int(class_id)] += 1
+            x, y = (float(value) for value in observation.ground_points[index])
             for name in observation.zones_of(index):
                 state.seen_in_a_zone = True
-                role = self._zones[name].role
-                if role == "approach" and state.entry_zone is None:
-                    state.entry_zone = name
-                elif role == "exit":
+                zone = self._zones[name]
+                if zone.role == "exit":
                     state.exit_zone = name
+                elif zone.role == "approach" and state.entry_zone is None:
+                    if zone.entry_heading is None:
+                        state.entry_zone = name
+                    else:
+                        state.first_in.setdefault(name, (timestamp, x, y))
+            if state.entry_zone is None:
+                self._enter_by_heading(state, timestamp, x, y)
         for crossing in observation.crossings:
             state = self._open[crossing.track_id]
             if state.crossing is None:
                 state.crossing = crossing
         return self._close(timestamp, lambda state: timestamp - state.last_seen > self._lost)
+
+    def _enter_by_heading(
+        self, state: _OpenPassage, timestamp: datetime, x: float, y: float
+    ) -> None:
+        """Settle the zones waiting on a heading, once the track has moved enough to have one."""
+        for name, first in state.first_in.items():
+            if first is None:
+                continue
+            since, first_x, first_y = first
+            if timestamp - since < HEADING_AFTER:
+                continue
+            if math.hypot(x - first_x, y - first_y) < HEADING_MIN_PX:
+                continue
+            # Image y grows downwards, so it is negated for a heading that turns anticlockwise.
+            heading = math.degrees(math.atan2(first_y - y, x - first_x)) % 360
+            if self._zones[name].accepts_heading(heading):
+                state.entry_zone = name
+                return
+            state.first_in[name] = None
 
     def flush(self, timestamp: datetime) -> list[Passage]:
         """Close every open passage, as at the end of a replay."""

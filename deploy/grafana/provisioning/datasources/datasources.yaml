@@ -11,3 +11,20 @@ datasources:
     jsonData:
       # The scrape interval; Grafana sizes rate() windows from it.
       timeInterval: 15s
+
+  # Grafana is on the host network, where TimescaleDB listens on loopback only.
+  - name: TimescaleDB
+    type: postgres
+    uid: timescaledb
+    access: proxy
+    url: 127.0.0.1:5432
+    user: trafficcam
+    editable: false
+    secureJsonData:
+      # From deploy/.env, through the container's environment.
+      password: $POSTGRES_PASSWORD
+    jsonData:
+      database: trafficcam
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: true

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from trafficcam.config import ConfigError, SiteConfig, load_site_config
 from trafficcam.detectors import Detector
+from trafficcam.detectors.banned_turn import BannedTurns
 from trafficcam.detectors.box_junction import BoxJunctionStops
 from trafficcam.geometry import SceneGeometry
 from trafficcam.health.watchdog import Watchdog, systemd_notify
@@ -80,6 +81,8 @@ def open_detectors(config: SiteConfig, config_hash: str) -> list[Detector]:
     detectors: list[Detector] = []
     if config.detectors.box_junction is not None:
         detectors.append(BoxJunctionStops(config, config_hash))
+    if config.detectors.banned_turns is not None:
+        detectors.append(BannedTurns(config, config_hash))
     return detectors
 
 

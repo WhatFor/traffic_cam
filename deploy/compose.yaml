@@ -129,6 +129,8 @@ services:
       GF_SMTP_FROM_ADDRESS: ${SMTP_USER}
       GF_SMTP_FROM_NAME: Traffic cam
       GF_SMTP_STARTTLS_POLICY: MandatoryStartTLS
+      # Read by provisioning/datasources/datasources.yaml.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set it in deploy/.env}
       # Read by provisioning/alerting/contact-points.yaml.
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:?set it in deploy/.env}
     volumes:
