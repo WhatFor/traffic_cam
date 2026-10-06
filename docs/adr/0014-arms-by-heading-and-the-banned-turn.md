@@ -4,7 +4,7 @@ Date: 2026-10-06. Status: Accepted.
 
 ## Context
 
-A red structure close to the camera hides the right-hand side of the junction. Two streams of traffic first become visible in the same patch of road beside it:
+The building on the right of the east arm hides the right-hand side of the junction. Two streams of traffic first become visible in the same patch of road beside it:
 
 - the south arm's traffic, which comes out heading across the image to the left;
 - the east arm's westbound traffic in the lanes behind the structure, which comes out heading down the image like the rest of that arm.

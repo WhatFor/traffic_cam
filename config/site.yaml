@@ -45,7 +45,7 @@ zones:
     role: approach
     arm: east
     polygon: [[1435, 640], [1512, 680], [1535, 550], [1575, 377], [1537, 372], [1504, 432], [1471, 506], [1440, 590]]
-  # The red structure on the right hides the south arm and the nearer westbound lanes of
+  # The building on the right hides the south arm and the nearer westbound lanes of
   # the east arm. Traffic from both first appears in the same patch, so the two zones
   # share a polygon and are told apart by which way a vehicle is heading when it appears.
   approach_south:                                 # heading across the image, to the left

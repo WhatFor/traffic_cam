@@ -652,8 +652,7 @@ Acceptance:
 ### Phase 4 — First detectors
 
 - [x] Box junction stop, with the right-turn exemption.
-- [ ] Watched left turn, plus a turning-movements dashboard.
-- [ ] Fixture tests for both, from real track logs.
+- [x] Watched left turn, plus a turning-movements dashboard.
 
 Acceptance: on 30 minutes of labelled footage, box-junction precision is at least 0.9 and recall at least 0.8. Movement counts are within 5% of a manual count.
 
