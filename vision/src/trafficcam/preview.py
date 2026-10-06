@@ -67,10 +67,13 @@ def render(frame: Image.Image, config: SiteConfig) -> Image.Image:
         label(x2 + 10, y2 - 12, f"{name} ({line.direction})", LINE_COLOUR)
 
     for name, head in config.signal_heads.items():
-        for _, (x, y, w, h) in head.lamps:
-            draw.rectangle([x, y, x + w, y + h], outline=LAMP_COLOUR, width=2)
-        x, y, _, _ = head.lamps.red
-        label(x + 14, y - 12, name, LAMP_COLOUR)
+        # The lamp squares are a few pixels across, so the head is boxed as a whole.
+        rects = list(head.lamps.values())
+        left, top = min(x for x, _, _, _ in rects) - 6, min(y for _, y, _, _ in rects) - 6
+        right = max(x + w for x, _, w, _ in rects) + 6
+        bottom = max(y + h for _, y, _, h in rects) + 6
+        draw.rectangle([left, top, right, bottom], outline=LAMP_COLOUR, width=2)
+        label(right + 6, top - 4, name, LAMP_COLOUR)
 
     return Image.alpha_composite(frame.convert("RGBA"), overlay).convert("RGB")
 

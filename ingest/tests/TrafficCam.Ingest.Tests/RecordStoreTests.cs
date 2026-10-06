@@ -18,10 +18,10 @@ public class RecordStoreTests(Servers servers)
         Migrator.Apply(database.ConnectionString, NullLoggerFactory.Instance);
 
         await using var source = NpgsqlDataSource.Create(database.ConnectionString);
-        Assert.Equal(2L, await Scalar(source, "SELECT count(*) FROM schemaversions"));
+        Assert.Equal(3L, await Scalar(source, "SELECT count(*) FROM schemaversions"));
         Assert.Equal(
-            2L,
-            await Scalar(source, "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_name IN ('passages', 'events')"));
+            3L,
+            await Scalar(source, "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_name IN ('passages', 'events', 'signal_changes')"));
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class RecordStoreTests(Servers servers)
         var database = await servers.CreateDatabaseAsync();
         await using var source = NpgsqlDataSource.Create(database.ConnectionString);
 
-        var stored = await new RecordStore(source).StoreAsync([Examples.Passage()], [], CancellationToken.None);
+        var stored = await new RecordStore(source).StoreAsync(new Batch { Passages = [Examples.Passage()] }, CancellationToken.None);
 
         Assert.Equal(new Stored(Passages: 1, Events: 0), stored);
         // Read back as JSON in the contract's shape and compared with what was sent.
@@ -64,9 +64,9 @@ public class RecordStoreTests(Servers servers)
         var first = Examples.Passage(Guid.NewGuid());
         var second = Examples.Passage(Guid.NewGuid());
 
-        Assert.Equal(1, (await store.StoreAsync([first], [], CancellationToken.None)).Passages);
-        Assert.Equal(1, (await store.StoreAsync([first, second], [], CancellationToken.None)).Passages);
-        Assert.Equal(0, (await store.StoreAsync([first, second], [], CancellationToken.None)).Passages);
+        Assert.Equal(1, (await store.StoreAsync(new Batch { Passages = [first] }, CancellationToken.None)).Passages);
+        Assert.Equal(1, (await store.StoreAsync(new Batch { Passages = [first, second] }, CancellationToken.None)).Passages);
+        Assert.Equal(0, (await store.StoreAsync(new Batch { Passages = [first, second] }, CancellationToken.None)).Passages);
 
         Assert.Equal(2L, await Scalar(source, "SELECT count(*) FROM passages"));
     }
@@ -79,8 +79,8 @@ public class RecordStoreTests(Servers servers)
         await using var source = NpgsqlDataSource.Create(database.ConnectionString);
         var store = new RecordStore(source);
 
-        var first = await store.StoreAsync([], [Examples.Event()], CancellationToken.None);
-        var again = await store.StoreAsync([], [Examples.Event()], CancellationToken.None);
+        var first = await store.StoreAsync(new Batch { Events = [Examples.Event()] }, CancellationToken.None);
+        var again = await store.StoreAsync(new Batch { Events = [Examples.Event()] }, CancellationToken.None);
 
         Assert.Equal(new Stored(Passages: 0, Events: 1), first);
         Assert.Equal(new Stored(Passages: 0, Events: 0), again);
@@ -107,11 +107,42 @@ public class RecordStoreTests(Servers servers)
         await using var source = NpgsqlDataSource.Create(database.ConnectionString);
 
         var stored = await new RecordStore(source).StoreAsync(
-            [Examples.Passage(Guid.NewGuid()), Examples.Passage(Guid.NewGuid())],
-            [Examples.Event(Guid.NewGuid())],
+            new Batch
+            {
+                Passages = [Examples.Passage(Guid.NewGuid()), Examples.Passage(Guid.NewGuid())],
+                Events = [Examples.Event(Guid.NewGuid())],
+                Signals = [Examples.SignalChange()],
+            },
             CancellationToken.None);
 
-        Assert.Equal(new Stored(Passages: 2, Events: 1), stored);
+        Assert.Equal(new Stored(Passages: 2, Events: 1, Signals: 1), stored);
+    }
+
+    [Fact]
+    public async Task A_signal_change_is_stored_with_every_column_as_sent_and_only_once()
+    {
+        Assert.SkipUnless(servers.Available, "postgres or mosquitto is not installed");
+        var database = await servers.CreateDatabaseAsync();
+        await using var source = NpgsqlDataSource.Create(database.ConnectionString);
+        var store = new RecordStore(source);
+
+        var first = await store.StoreAsync(new Batch { Signals = [Examples.SignalChange()] }, CancellationToken.None);
+        var again = await store.StoreAsync(new Batch { Signals = [Examples.SignalChange()] }, CancellationToken.None);
+
+        Assert.Equal((1, 0), (first.Signals, again.Signals));
+        var row = JsonNode.Parse((string)(await Scalar(source, """
+            SELECT jsonb_build_object(
+                'id', id, 'camera', camera, 'config_hash', config_hash, 'head_id', head_id,
+                'from_state', from_state, 'to_state', to_state, 'source', source,
+                'confidence', confidence)::text
+            FROM signal_changes
+            """))!)!.AsObject();
+        var sent = JsonNode.Parse(Examples.SignalChangeJson)!.AsObject();
+        foreach (var (name, value) in row)
+            Assert.True(JsonNode.DeepEquals(sent[name], value), $"{name}: sent {sent[name]}, stored {value}");
+        Assert.Equal(
+            sent["ts"]!.GetValue<DateTimeOffset>().UtcDateTime,
+            await Scalar(source, "SELECT ts FROM signal_changes") as DateTime?);
     }
 
     static async Task<object?> Scalar(NpgsqlDataSource source, string sql)

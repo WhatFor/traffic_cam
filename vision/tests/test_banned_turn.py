@@ -6,14 +6,15 @@ from collections.abc import Sequence
 from typing import Any
 
 from test_box_junction import ARRIVE, GONE, LEAVE_EAST, LEAVE_NORTH, RIGHT_TURN_SITE, Point
-from test_geometry import at, nothing
+from test_geometry import FPS, at, nothing
 from test_passages import CAR, box
 
 from trafficcam.config import SiteConfig
-from trafficcam.contracts import Event, Passage
+from trafficcam.contracts import Event, Passage, SignalState
 from trafficcam.detectors.banned_turn import BannedTurns
 from trafficcam.geometry import SceneGeometry
 from trafficcam.passages import PassageBuilder
+from trafficcam.signals import Reading, Signals
 
 # The box junction test site, where the turn to the east exit is now forbidden.
 SITE: dict[str, Any] = copy.deepcopy(RIGHT_TURN_SITE)
@@ -68,3 +69,30 @@ def test_a_track_seen_in_another_arms_exit_is_not_believed() -> None:
 
     assert passage.movement == "south->east"
     assert events == []
+
+
+def test_the_event_notes_what_the_listed_signals_were_showing() -> None:
+    site = copy.deepcopy(SITE)
+    site["signal_heads"] = {"side": {"lamps": {"green": [90, 30, 3, 3]}}}
+    site["detectors"]["banned_turns"]["signal_heads"] = ["side"]
+    config = SiteConfig.model_validate(site)
+    signals = Signals(config, "sha256:test")
+    signals.update(at(0), {"side": Reading(SignalState.red, at(0))})
+    signals.update(at(6), {"side": Reading(SignalState.green, at(6))})
+    scene = SceneGeometry(config)
+    builder = PassageBuilder(config, "sha256:test", signals)
+    detector = BannedTurns(config, "sha256:test", signals)
+
+    events = []
+    path = [*ARRIVE, *LEAVE_EAST]
+    for frame, point in enumerate([*path, *GONE]):
+        tracks = nothing() if point is None else box(*point, CAR, track_id=7)
+        observation = scene.observe(tracks, at(frame))
+        detector.update(observation, at(frame))
+        for passage in builder.update(observation, at(frame)):
+            events += detector.passage_closed(passage)
+
+    (event,) = events
+    assert event.attrs["signals"] == {
+        "side": {"at_start": "red", "green_s": round((len(path) - 1 - 6) / FPS, 1)}
+    }

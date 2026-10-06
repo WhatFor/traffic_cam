@@ -14,7 +14,7 @@ using TrafficCam.Ingest.Messages;
 namespace TrafficCam.Ingest.Mqtt;
 
 /// <summary>
-/// Stores passages and events from the broker. A message is acknowledged only once the transaction holding
+/// Stores passages, events and signal changes from the broker. A message is acknowledged only once the transaction holding
 /// it has committed, so whatever happens to this process the broker still has what is not stored.
 /// </summary>
 public sealed class Consumer(
@@ -24,6 +24,8 @@ public sealed class Consumer(
     public const string PassagesTopic = "trafficcam/v1/passages";
     /// <summary>Followed by the event's type.</summary>
     public const string EventsTopic = "trafficcam/v1/events/";
+    /// <summary>Followed by the signal head's name.</summary>
+    public const string SignalsTopic = "trafficcam/v1/signals/";
     static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
     const int LoggedPayloadLength = 500;
 
@@ -80,6 +82,7 @@ public sealed class Consumer(
         var subscribe = new MqttClientSubscribeOptionsBuilder()
             .WithTopicFilter(PassagesTopic, MqttQualityOfServiceLevel.AtLeastOnce)
             .WithTopicFilter(EventsTopic + "+", MqttQualityOfServiceLevel.AtLeastOnce)
+            .WithTopicFilter(SignalsTopic + "+", MqttQualityOfServiceLevel.AtLeastOnce)
             .Build();
 
         while (!stopping.IsCancellationRequested)
@@ -108,28 +111,15 @@ public sealed class Consumer(
         while (!stopping.IsCancellationRequested)
         {
             var batch = await ReadBatchAsync(stopping);
-            var passages = new List<Passage>(batch.Count);
-            var events = new List<Event>();
+            var records = new Batch();
             foreach (var item in batch)
             {
                 var topic = item.Message.ApplicationMessage.Topic;
                 var payload = item.Message.ApplicationMessage.Payload.ToArray();
-                var isEvent = topic.StartsWith(EventsTopic, StringComparison.Ordinal);
-                string? error;
-                if (isEvent)
-                {
-                    if (EventParser.TryParse(payload, out var @event, out error))
-                    {
-                        events.Add(@event);
-                        continue;
-                    }
-                }
-                else if (PassageParser.TryParse(payload, out var passage, out error))
-                {
-                    passages.Add(passage);
+                var (kind, error) = Add(records, topic, payload);
+                if (error is null)
                     continue;
-                }
-                metrics.Invalid(isEvent ? IngestMetrics.Event : IngestMetrics.Passage).Inc();
+                metrics.Invalid(kind).Inc();
                 var text = Encoding.UTF8.GetString(payload);
                 logger.LogWarning(
                     "Invalid message on {Topic}: {Error}. Payload: {Payload}",
@@ -138,11 +128,10 @@ public sealed class Consumer(
                     text.Length > LoggedPayloadLength ? text[..LoggedPayloadLength] : text);
             }
 
-            var stored = await StoreAsync(passages, events, stopping);
-            metrics.Stored(IngestMetrics.Passage).Inc(stored.Passages);
-            metrics.Duplicate(IngestMetrics.Passage).Inc(passages.Count - stored.Passages);
-            metrics.Stored(IngestMetrics.Event).Inc(stored.Events);
-            metrics.Duplicate(IngestMetrics.Event).Inc(events.Count - stored.Events);
+            var stored = await StoreAsync(records, stopping);
+            Count(IngestMetrics.Passage, records.Passages.Count, stored.Passages);
+            Count(IngestMetrics.Event, records.Events.Count, stored.Events);
+            Count(IngestMetrics.Signal, records.Signals.Count, stored.Signals);
 
             foreach (var item in batch.Where(item => item.Connection == connection))
             {
@@ -176,8 +165,35 @@ public sealed class Consumer(
         return batch;
     }
 
+    /// <summary>Parses a message as the kind of record its topic carries and adds it to the batch.</summary>
+    static (string Kind, string? Error) Add(Batch records, string topic, byte[] payload)
+    {
+        string? error;
+        if (topic.StartsWith(EventsTopic, StringComparison.Ordinal))
+        {
+            if (EventParser.TryParse(payload, out var @event, out error))
+                records.Events.Add(@event);
+            return (IngestMetrics.Event, error);
+        }
+        if (topic.StartsWith(SignalsTopic, StringComparison.Ordinal))
+        {
+            if (SignalChangeParser.TryParse(payload, out var change, out error))
+                records.Signals.Add(change);
+            return (IngestMetrics.Signal, error);
+        }
+        if (PassageParser.TryParse(payload, out var passage, out error))
+            records.Passages.Add(passage);
+        return (IngestMetrics.Passage, error);
+    }
+
+    void Count(string kind, int received, int stored)
+    {
+        metrics.Stored(kind).Inc(stored);
+        metrics.Duplicate(kind).Inc(received - stored);
+    }
+
     /// <summary>Keeps trying until the batch is committed; nothing is given up on.</summary>
-    async Task<Stored> StoreAsync(List<Passage> passages, List<Event> events, CancellationToken stopping)
+    async Task<Stored> StoreAsync(Batch records, CancellationToken stopping)
     {
         var delay = TimeSpan.FromSeconds(1);
         while (true)
@@ -185,8 +201,8 @@ public sealed class Consumer(
             var started = Stopwatch.GetTimestamp();
             try
             {
-                var stored = await store.StoreAsync(passages, events, stopping);
-                if (passages.Count + events.Count > 0)
+                var stored = await store.StoreAsync(records, stopping);
+                if (records.Count > 0)
                 {
                     metrics.InsertSeconds.Observe(Stopwatch.GetElapsedTime(started).TotalSeconds);
                     metrics.LastStored.SetToCurrentTimeUtc();
@@ -198,7 +214,7 @@ public sealed class Consumer(
                 metrics.DatabaseErrors.Inc();
                 logger.LogWarning(
                     "Could not store {Count} records, trying again in {Delay} s: {Reason}",
-                    passages.Count + events.Count,
+                    records.Count,
                     delay.TotalSeconds,
                     exception.Message);
                 await Task.Delay(delay, stopping);

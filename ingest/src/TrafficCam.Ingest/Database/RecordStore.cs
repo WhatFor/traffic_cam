@@ -6,8 +6,18 @@ using TrafficCam.Contracts;
 
 namespace TrafficCam.Ingest.Database;
 
+/// <summary>Records of each kind, to be written together.</summary>
+public sealed class Batch
+{
+    public List<Passage> Passages { get; init; } = [];
+    public List<Event> Events { get; init; } = [];
+    public List<SignalChange> Signals { get; init; } = [];
+
+    public int Count => Passages.Count + Events.Count + Signals.Count;
+}
+
 /// <summary>How many of the records given to the store were not already there.</summary>
-public readonly record struct Stored(int Passages, int Events);
+public readonly record struct Stored(int Passages, int Events, int Signals = 0);
 
 public sealed class RecordStore(NpgsqlDataSource dataSource)
 {
@@ -29,24 +39,32 @@ public sealed class RecordStore(NpgsqlDataSource dataSource)
         ON CONFLICT (id, ts) DO NOTHING
         """;
 
+    // The broker keeps each head's last change and sends it again on every subscription.
+    const string InsertSignalChange = """
+        INSERT INTO signal_changes (
+            id, ts, camera, head_id, from_state, to_state, source, confidence, config_hash)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (id, ts) DO NOTHING
+        """;
+
     static readonly JsonSerializerOptions WireNames = new() { Converters = { new JsonStringEnumConverter() } };
 
     /// <summary>Writes everything in one transaction.</summary>
-    public async Task<Stored> StoreAsync(
-        IReadOnlyCollection<Passage> passages, IReadOnlyCollection<Event> events, CancellationToken cancellation)
+    public async Task<Stored> StoreAsync(Batch records, CancellationToken cancellation)
     {
-        if (passages.Count + events.Count == 0)
+        if (records.Count == 0)
             return default;
         await using var connection = await dataSource.OpenConnectionAsync(cancellation);
         await using var transaction = await connection.BeginTransactionAsync(cancellation);
         await using var batch = new NpgsqlBatch(connection, transaction);
-        var passageCommands = passages.Select(Command).ToList();
-        var eventCommands = events.Select(Command).ToList();
-        foreach (var command in passageCommands.Concat(eventCommands))
+        var passages = records.Passages.Select(Command).ToList();
+        var events = records.Events.Select(Command).ToList();
+        var signals = records.Signals.Select(Command).ToList();
+        foreach (var command in passages.Concat(events).Concat(signals))
             batch.BatchCommands.Add(command);
         await batch.ExecuteNonQueryAsync(cancellation);
         await transaction.CommitAsync(cancellation);
-        return new Stored(Inserted(passageCommands), Inserted(eventCommands));
+        return new Stored(Inserted(passages), Inserted(events), Inserted(signals));
     }
 
     static int Inserted(List<NpgsqlBatchCommand> commands) => (int)commands.Sum(command => (long)command.RecordsAffected);
@@ -86,6 +104,19 @@ public sealed class RecordStore(NpgsqlDataSource dataSource)
             @event.ConfigHash,
             @event.DetectorVersion,
             new Jsonb(@event.Attrs));
+
+    static NpgsqlBatchCommand Command(SignalChange change) =>
+        Command(
+            InsertSignalChange,
+            change.Id,
+            change.Ts.UtcDateTime,
+            change.Camera,
+            change.HeadId,
+            WireName(change.FromState),
+            WireName((SignalState?)change.ToState),
+            WireName((SignalSource?)change.Source),
+            (float?)change.Confidence,
+            change.ConfigHash);
 
     static NpgsqlBatchCommand Command(string sql, params object?[] values)
     {

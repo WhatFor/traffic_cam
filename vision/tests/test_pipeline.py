@@ -9,13 +9,16 @@ import numpy as np
 import supervision as sv
 from test_geometry import FPS, at
 from test_passages import CAR, CONFIG, LOST_FRAMES, THROUGH
+from test_signals import SIGNAL_SITE
 
-from trafficcam.contracts import Event, Passage
+from trafficcam.config import SiteConfig
+from trafficcam.contracts import Event, Passage, SignalChange, SignalState
 from trafficcam.detectors import Detector
 from trafficcam.geometry import Observation, SceneGeometry
 from trafficcam.inference import InferenceBackend
 from trafficcam.passages import PassageBuilder
 from trafficcam.pipeline import FrameResult, Pipeline
+from trafficcam.signals import Reading, Signals
 from trafficcam.sources import Frame
 from trafficcam.tracking.bytetrack import ByteTracker
 
@@ -65,6 +68,12 @@ def an_event(event_type: str = "box_junction_stop") -> Event:
     """The contract's example event."""
     example = json.loads((EXAMPLES / "event.json").read_text())
     return Event.model_validate(example | {"type": event_type})
+
+
+def a_signal_change(head: str = "near", to_state: str = "red_amber") -> SignalChange:
+    """The contract's example signal change."""
+    example = json.loads((EXAMPLES / "signal_change.json").read_text())
+    return SignalChange.model_validate(example | {"head_id": head, "to_state": to_state})
 
 
 def run(script: Sequence[sv.Detections]) -> tuple[Pipeline, list[FrameResult]]:
@@ -129,3 +138,34 @@ def test_flush_gives_the_events_of_the_passages_it_closes() -> None:
 
     assert len(passages) == 1
     assert [event.type for event in events] == ["on_passage"]
+
+
+class ScriptedSignals:
+    """A reader that says head "near" is green up to frame 5 and amber from then on."""
+
+    def read(self, frame: Frame) -> dict[str, Reading]:
+        state = SignalState.green if frame.index < 5 else SignalState.amber
+        return {"near": Reading(state, at(0 if frame.index < 5 else 5))}
+
+
+def test_signal_states_and_changes_are_on_each_result() -> None:
+    config = SiteConfig.model_validate(SIGNAL_SITE)
+    signals = Signals(config, CONFIG_HASH)
+    running = Pipeline(
+        ScriptedBackend(DRIVE),
+        ByteTracker(config.tracking, FPS),
+        SceneGeometry(config),
+        PassageBuilder(config, CONFIG_HASH, signals),
+        (),
+        signals,
+        ScriptedSignals(),
+    )
+
+    results = [running.process(frame) for frame in frames(8)]
+
+    assert [change.to_state for change in results[0].signal_changes] == [SignalState.green]
+    assert [change.to_state for change in results[5].signal_changes] == [SignalState.amber]
+    assert results[5].signal_changes[0].ts == at(5)
+    assert results[4].signals["near"] == SignalState.green
+    assert results[7].signals["near"] == SignalState.amber
+    assert sum(len(result.signal_changes) for result in results) == 2

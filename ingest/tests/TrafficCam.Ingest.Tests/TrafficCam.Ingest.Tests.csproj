@@ -9,5 +9,6 @@
     <ProjectReference Include="../../src/TrafficCam.Ingest/TrafficCam.Ingest.csproj" />
     <Content Include="../../../contracts/examples/passage.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../contracts/examples/event.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../contracts/examples/signal_change.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

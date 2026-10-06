@@ -22,3 +22,10 @@ class InferenceBackend(Protocol):
     def detect(self, frame: Frame) -> sv.Detections:
         """Detections with `xyxy` in full-frame pixels and COCO ids as `class_id`."""
         ...
+
+
+class NullBackend:
+    """Finds nothing. For running the rest of the pipeline where there is no accelerator."""
+
+    def detect(self, frame: Frame) -> sv.Detections:
+        return sv.Detections.empty()

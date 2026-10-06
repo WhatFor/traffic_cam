@@ -4,6 +4,7 @@ A file holds one UTC hour. It starts with a `Header`, and gets another each time
 service restarts within that hour; every other line is a `FrameRecord`.
 """
 
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Literal
 
@@ -11,7 +12,7 @@ import numpy as np
 import supervision as sv
 from pydantic import BaseModel, ConfigDict, Field
 
-from trafficcam.contracts import RoadUserClass
+from trafficcam.contracts import RoadUserClass, SignalState
 from trafficcam.geometry import Observation
 from trafficcam.inference import CLASS_NAMES
 
@@ -54,6 +55,8 @@ class FrameRecord(_Record):
     detections: list[Detection]
     tracks: list[Track]
     crossings: list[LineCrossing]
+    # Every signal head's state in this frame. Absent from logs made before signals were read.
+    signals: dict[str, SignalState] = {}
 
 
 def _exact(value: np.floating) -> float:
@@ -76,7 +79,11 @@ def _rows(detections: sv.Detections) -> list[dict[str, Any]]:
 
 
 def to_record(
-    index: int, timestamp: datetime, detections: sv.Detections, observation: Observation
+    index: int,
+    timestamp: datetime,
+    detections: sv.Detections,
+    observation: Observation,
+    signals: Mapping[str, SignalState],
 ) -> FrameRecord:
     tracks = observation.tracks
     ids = tracks.tracker_id if tracks.tracker_id is not None else []
@@ -93,5 +100,6 @@ def to_record(
                 {"id": crossing.track_id, "line": crossing.line, "ts": crossing.timestamp}
                 for crossing in observation.crossings
             ],
+            "signals": signals,
         }
     )

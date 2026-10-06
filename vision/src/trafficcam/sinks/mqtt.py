@@ -9,10 +9,11 @@ from paho.mqtt.enums import CallbackAPIVersion
 from paho.mqtt.properties import Properties
 from paho.mqtt.reasoncodes import ReasonCode
 
-from trafficcam.contracts import Event, Passage, Status, VisionState
+from trafficcam.contracts import Event, Passage, SignalChange, Status, VisionState
 
 PASSAGES_TOPIC = "trafficcam/v1/passages"
 EVENTS_TOPIC = "trafficcam/v1/events"  # followed by the event's type
+SIGNALS_TOPIC = "trafficcam/v1/signals"  # followed by the head's name
 STATUS_TOPIC = "trafficcam/v1/status/vision"
 USERNAME = "trafficcam"
 QOS = 1
@@ -53,8 +54,16 @@ class MqttSink:
     def event(self, event: Event) -> None:
         self._publish(f"{EVENTS_TOPIC}/{event.type}", event)
 
-    def _publish(self, topic: str, record: Passage | Event) -> None:
-        info = self._client.publish(topic, record.model_dump_json(by_alias=True), qos=QOS)
+    def signal(self, change: SignalChange) -> None:
+        # Retained, so a new subscriber learns each head's state at once.
+        self._publish(f"{SIGNALS_TOPIC}/{change.head_id}", change, retain=True)
+
+    def _publish(
+        self, topic: str, record: Passage | Event | SignalChange, retain: bool = False
+    ) -> None:
+        info = self._client.publish(
+            topic, record.model_dump_json(by_alias=True), qos=QOS, retain=retain
+        )
         if info.rc == mqtt.MQTT_ERR_QUEUE_SIZE:
             self.dropped += 1
             if self.dropped % 100 == 1:

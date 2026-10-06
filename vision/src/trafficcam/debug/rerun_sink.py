@@ -5,7 +5,7 @@ import rerun as rr
 import supervision as sv
 
 from trafficcam.config import SiteConfig
-from trafficcam.contracts import Event, Passage
+from trafficcam.contracts import Event, Passage, SignalChange, SignalState
 from trafficcam.geometry import Observation
 from trafficcam.inference import CLASS_NAMES
 from trafficcam.pipeline import FrameResult
@@ -16,6 +16,13 @@ MEMORY_LIMIT = "512MiB"
 JPEG_QUALITY = 75
 # Pixels in the logged image between a track's box and the anchor of its id label.
 ID_LABEL_OFFSET = 24
+SIGNAL_COLOURS = {
+    SignalState.red: (255, 0, 0),
+    SignalState.red_amber: (255, 120, 0),
+    SignalState.green: (0, 220, 0),
+    SignalState.amber: (255, 200, 0),
+    SignalState.unknown: (128, 128, 128),
+}
 
 
 class RerunSink:
@@ -27,6 +34,14 @@ class RerunSink:
 
     def __init__(self, config: SiteConfig, image_size: tuple[int, int]) -> None:
         self._scale = image_size[0] / config.camera.size[0]
+        # Just left of each head, so the marker does not cover its lamps.
+        self._heads = {
+            name: (
+                (min(x for x, _, _, _ in head.lamps.values()) - 12) * self._scale,
+                float(np.mean([y + h / 2 for _, y, _, h in head.lamps.values()])) * self._scale,
+            )
+            for name, head in config.signal_heads.items()
+        }
         rr.init("trafficcam")
         # Returns immediately; the server lives only as long as this process.
         uri = rr.serve_grpc(grpc_port=GRPC_PORT, server_memory_limit=MEMORY_LIMIT)
@@ -58,6 +73,17 @@ class RerunSink:
         self.frame(result.frame)
         self.detections(result.detections, result.inference_ms)
         self.observation(result.observation)
+        if result.signals:
+            names = list(result.signals)
+            rr.log(
+                "camera/signals",
+                rr.Points2D(
+                    [self._heads[name] for name in names],
+                    radii=5,
+                    colors=[SIGNAL_COLOURS[result.signals[name]] for name in names],
+                    labels=[f"{name} {result.signals[name].value}" for name in names],
+                ),
+            )
 
     def close(self) -> None:
         pass
@@ -119,3 +145,7 @@ class RerunSink:
             "events/detections",
             rr.TextLog(f"#{event.track_id} {event.type}: {details}", level=rr.TextLogLevel.WARN),
         )
+
+    def signal(self, change: SignalChange) -> None:
+        was = change.from_state.value if change.from_state else "nothing"
+        rr.log("events/signals", rr.TextLog(f"{change.head_id}: {was} -> {change.to_state.value}"))

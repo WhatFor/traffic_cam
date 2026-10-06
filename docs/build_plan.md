@@ -658,12 +658,12 @@ Acceptance: on 30 minutes of labelled footage, box-junction precision is at leas
 
 ### Phase 5 — Signals and red light
 
-- [ ] Spike: lamp readability from the main stream at day, dusk and night.
-- [ ] Lamp-region calibration tool.
-- [ ] `LampRoiObserver`: sequence state machine, flicker vote, `unknown` handling.
-- [ ] Map heads to stop lines from at least 10 recorded cycles.
-- [ ] `signal_changes` dashboard, showing cycle and phase durations.
-- [ ] Red-light and amber detectors; signal state recorded on passages.
+- [x] Spike: lamp readability from the main stream at day, dusk and night.
+- [x] Lamp-region calibration tool.
+- [x] `LampRoiObserver`: sequence state machine, flicker vote, `unknown` handling.
+- [x] Map heads to stop lines from at least 10 recorded cycles.
+- [x] `signal_changes` dashboard, showing cycle and phase durations.
+- [x] Red-light and amber detectors; signal state recorded on passages.
 
 Acceptance: the observer matches hand labels on at least 98% of observed seconds across day, dusk and night samples. No red-light event is ever raised on an `unknown` or inferred state.
 
@@ -672,7 +672,7 @@ Acceptance: the observer matches hand labels on at least 98% of observed seconds
 - [ ] One encoder with clip-buffer and live outputs; measure CPU.
 - [ ] Clips: 5 s before plus 55 s after, extension on overlap, still frame, clip messages, retention job.
 - [ ] Manual trigger via `just clip`.
-- [ ] MediaMTX live view over Tailscale.
+- [x] MediaMTX live view over Tailscale.
 
 Acceptance:
 

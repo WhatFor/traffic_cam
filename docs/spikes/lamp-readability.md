@@ -86,8 +86,26 @@ Not yet known:
 ## For the observer
 
 - Score red by colour, amber and green mostly by brightness.
-- Compare lamps within a head, as the build plan says, and treat an impossible combination or an out-of-sequence change as `unknown`.
+- Compare lamps within a head, as the build plan says, and treat an impossible combination as `unknown`. Do not believe an out-of-sequence change until it has lasted.
 - Sample no more than 5x5 px, and 3x3 px on heads under about 8 px lamp spacing.
+
+What was built from this, and how it did on its first two hours live, is in `docs/adr/0015-signal-states-from-lamp-colour.md`. That includes the check of the head mapping above against 92 cycles of crossings.
+
+## To do: daytime
+
+Left for 2026-10-07 or the next clear day. Two clips, because the two daytime risks happen at different times:
+
+1. **Around midday**, for short exposures and LED flicker. Record three minutes:
+
+   ```sh
+   ffmpeg -rtsp_transport tcp -i rtsp://<pi>:8554/cam -t 180 -c copy calibration/clip_day.mp4
+   ```
+
+2. **Late afternoon with the sun out and low behind the camera** (about 16:30 to 17:30 in October), for sun lighting unlit lamps. Same command, to `calibration/clip_low_sun.mp4`.
+3. Run `measure` on each, as below. If the camera has moved since 2026-10-06, run `find` first; the positions in `lamps.json` are for that pose.
+4. Look at, per head: dark frames among lit ones (flicker), unlit scores rising towards lit ones (sun), and whether the sequence still comes out in order.
+5. Check the same on the live observer: its share of `unknown` per head through the day is on the Signals dashboard.
+6. Add a "Day" section here and update the conclusion. If a head fails in daylight, the options are a longer vote, a smaller sample, or the full-resolution read path from the build plan.
 
 ## Running it on another clip
 

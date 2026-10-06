@@ -73,6 +73,23 @@ public class ConsumerTests(Servers servers)
     }
 
     [Fact]
+    public async Task A_signal_change_sent_again_is_stored_once()
+    {
+        await using var ingest = await Ingest.StartAsync(servers);
+        var payload = Examples.SignalChangePayload();
+
+        await ingest.PublishAsync(payload, Consumer.SignalsTopic + "sh_south_primary");
+        await ingest.PublishAsync(payload, Consumer.SignalsTopic + "sh_south_primary");
+        await ingest.PublishAsync("{}"u8.ToArray(), Consumer.SignalsTopic + "sh_south_primary");
+
+        // The duplicate is counted after its batch commits; the invalid one as it is parsed.
+        await Eventually(() => ingest.Metrics.Duplicate(IngestMetrics.Signal).Value == 1);
+        await Eventually(() => ingest.Metrics.Invalid(IngestMetrics.Signal).Value == 1);
+        Assert.Equal(1, await ingest.RowsAsync("signal_changes"));
+        Assert.Equal(1, ingest.Metrics.Stored(IngestMetrics.Signal).Value);
+    }
+
+    [Fact]
     public async Task A_passage_on_an_event_topic_is_invalid()
     {
         await using var ingest = await Ingest.StartAsync(servers);

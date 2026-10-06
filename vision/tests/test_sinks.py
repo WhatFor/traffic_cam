@@ -6,6 +6,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -15,11 +16,17 @@ import pytest
 from paho.mqtt.enums import CallbackAPIVersion
 from test_contracts import validator_for
 from test_passages import THROUGH, gone, run
-from test_pipeline import an_event
+from test_pipeline import a_signal_change, an_event
 
-from trafficcam.contracts import Event, Passage, Status
+from trafficcam.contracts import Event, Passage, SignalChange, Status
 from trafficcam.sinks.jsonl import JsonlSink
-from trafficcam.sinks.mqtt import EVENTS_TOPIC, PASSAGES_TOPIC, STATUS_TOPIC, MqttSink
+from trafficcam.sinks.mqtt import (
+    EVENTS_TOPIC,
+    PASSAGES_TOPIC,
+    SIGNALS_TOPIC,
+    STATUS_TOPIC,
+    MqttSink,
+)
 from trafficcam.timesync import wait_for_clock_sync
 
 Received = tuple[str, dict]
@@ -55,6 +62,16 @@ def test_jsonl_holds_events_alongside_passages(tmp_path: Path) -> None:
     passage_line, event_line = path.read_text().splitlines()
     assert json.loads(passage_line)["schema"] == "passage/1"
     assert Event.model_validate_json(event_line) == an_event()
+
+
+def test_jsonl_holds_signal_changes_too(tmp_path: Path) -> None:
+    path = tmp_path / "records.jsonl"
+
+    sink = JsonlSink(path)
+    sink.signal(a_signal_change())
+    sink.close()
+
+    assert SignalChange.model_validate_json(path.read_text()) == a_signal_change()
 
 
 def test_jsonl_replaces_an_existing_file(tmp_path: Path) -> None:
@@ -105,10 +122,18 @@ def received(broker: int) -> Iterator[Callable[[str, str | None], dict]]:
     def collect(_client: mqtt.Client, _userdata: object, message: mqtt.MQTTMessage) -> None:
         messages.put((message.topic, json.loads(message.payload)))
 
+    subscribed = threading.Event()
+
+    def ready(*_: object) -> None:
+        subscribed.set()
+
     client.on_connect = subscribe
+    client.on_subscribe = ready
     client.on_message = collect
     client.connect("127.0.0.1", broker)
     client.loop_start()
+    # Otherwise a test can publish before this listener is subscribed, and miss the message.
+    assert subscribed.wait(5)
 
     def wait_for(topic: str, state: str | None = None) -> dict:
         deadline = time.monotonic() + 5
@@ -152,6 +177,41 @@ def test_mqtt_publishes_an_event_under_its_type(broker: int, received: Callable[
 
     validator_for(Event).validate(payload)
     assert payload["attrs"] == an_event().attrs
+
+
+def test_mqtt_keeps_each_heads_latest_state_for_late_subscribers(broker: int) -> None:
+    sink = sink_for(broker)
+    deadline = time.monotonic() + 5
+    while not sink.connected and time.monotonic() < deadline:
+        time.sleep(0.01)
+    sink.signal(a_signal_change("near", "red"))
+    sink.signal(a_signal_change("near", "green"))
+    sink.signal(a_signal_change("far", "amber"))
+    sink.close()
+
+    # Subscribing only now, after the sink has gone: retained messages are still delivered.
+    retained: queue.Queue[Received] = queue.Queue()
+    late = mqtt.Client(CallbackAPIVersion.VERSION2, protocol=mqtt.MQTTv5)
+
+    def subscribe(connected: mqtt.Client, *_: object) -> None:
+        connected.subscribe(f"{SIGNALS_TOPIC}/#", qos=1)
+
+    def collect(_client: mqtt.Client, _userdata: object, message: mqtt.MQTTMessage) -> None:
+        retained.put((message.topic, json.loads(message.payload)))
+
+    late.on_connect = subscribe
+    late.on_message = collect
+    late.connect("127.0.0.1", broker)
+    late.loop_start()
+    got = dict(retained.get(timeout=5) for _ in range(2))
+    late.disconnect()
+    late.loop_stop()
+
+    assert {topic: payload["to_state"] for topic, payload in got.items()} == {
+        f"{SIGNALS_TOPIC}/near": "green",
+        f"{SIGNALS_TOPIC}/far": "amber",
+    }
+    validator_for(SignalChange).validate(got[f"{SIGNALS_TOPIC}/near"])
 
 
 def test_mqtt_status_is_online_then_offline_on_close(

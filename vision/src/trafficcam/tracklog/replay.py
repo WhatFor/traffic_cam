@@ -1,7 +1,7 @@
 """Reads track logs back, and replays the detections in them through the pipeline."""
 
 import sys
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -9,6 +9,7 @@ import supervision as sv
 from pydantic import TypeAdapter, ValidationError
 
 from trafficcam.inference import COCO_CLASS_IDS
+from trafficcam.signals import Reading
 from trafficcam.sources import Frame
 from trafficcam.tracklog import Detection, FrameRecord, Header
 
@@ -48,6 +49,7 @@ class TrackLogReplay:
         self._paths = paths
         self._config_hash = config_hash
         self._current: FrameRecord | None = None
+        self._showing: dict[str, Reading] = {}
 
     def frames(self) -> Iterator[Frame]:
         noted = False
@@ -61,6 +63,16 @@ class TrackLogReplay:
             yield Frame(index=record.frame, timestamp=record.ts, image=NO_IMAGE)
 
     def detect(self, frame: Frame) -> sv.Detections:
+        return to_detections(self._record_of(frame).detections)
+
+    def read(self, frame: Frame) -> Mapping[str, Reading]:
+        """The signal states recorded for this frame, each dated from when it first showed."""
+        for head, state in self._record_of(frame).signals.items():
+            if head not in self._showing or self._showing[head].state != state:
+                self._showing[head] = Reading(state, frame.timestamp)
+        return self._showing
+
+    def _record_of(self, frame: Frame) -> FrameRecord:
         if self._current is None or self._current.frame != frame.index:
             raise ValueError(f"frame {frame.index} is not the one being replayed")
-        return to_detections(self._current.detections)
+        return self._current

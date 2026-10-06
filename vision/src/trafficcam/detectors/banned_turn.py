@@ -4,8 +4,9 @@ import uuid
 from datetime import datetime
 
 from trafficcam.config import SiteConfig
-from trafficcam.contracts import Event, Passage
+from trafficcam.contracts import Event, Passage, SignalState
 from trafficcam.geometry import Observation
+from trafficcam.signals import Signals
 
 EVENT_TYPE = "banned_turn"
 DETECTOR_VERSION = "1"
@@ -18,12 +19,16 @@ class BannedTurns:
     track looks like when the tracker has passed one vehicle's id on to another.
     """
 
-    def __init__(self, config: SiteConfig, config_hash: str) -> None:
+    def __init__(
+        self, config: SiteConfig, config_hash: str, signals: Signals | None = None
+    ) -> None:
         settings = config.detectors.banned_turns
         if settings is None:
             raise ValueError("detectors.banned_turns is not configured")
         self._camera = config.camera.id
         self._config_hash = config_hash
+        self._signals = signals
+        self._signal_heads = settings.signal_heads
         self._banned = {
             (config.movements[name].from_, config.movements[name].to): name
             for name in settings.movements
@@ -66,8 +71,28 @@ class BannedTurns:
                     "track_id": passage.track_id,
                     "class": passage.class_,
                     "confidence": None,
-                    "attrs": {"turn": name, "movement": passage.movement},
+                    "attrs": {"turn": name, "movement": passage.movement}
+                    | self._signal_attrs(passage),
                     "clip_id": None,
                 }
             )
         ]
+
+    def _signal_attrs(self, passage: Passage) -> dict[str, object]:
+        """What each listed head showed as the vehicle appeared, and its green time since."""
+        if self._signals is None or not self._signal_heads:
+            return {}
+        return {
+            "signals": {
+                head: {
+                    "at_start": self._signals.state_of(head, passage.first_seen)[0].value,
+                    "green_s": round(
+                        self._signals.seconds_in(
+                            head, SignalState.green, passage.first_seen, passage.last_seen
+                        ),
+                        1,
+                    ),
+                }
+                for head in self._signal_heads
+            }
+        }

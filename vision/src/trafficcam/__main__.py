@@ -10,12 +10,15 @@ from trafficcam.config import ConfigError, SiteConfig, load_site_config
 from trafficcam.detectors import Detector
 from trafficcam.detectors.banned_turn import BannedTurns
 from trafficcam.detectors.box_junction import BoxJunctionStops
+from trafficcam.detectors.red_light import RedLight
 from trafficcam.geometry import SceneGeometry
 from trafficcam.health.watchdog import Watchdog, systemd_notify
-from trafficcam.inference import InferenceBackend
+from trafficcam.inference import InferenceBackend, NullBackend
 from trafficcam.outputs import open_outputs
 from trafficcam.passages import PassageBuilder
 from trafficcam.pipeline import Pipeline, run
+from trafficcam.signals import Signals
+from trafficcam.signals.lamps import LampRoiObserver
 from trafficcam.sources import FrameSource
 from trafficcam.timesync import wait_for_clock_sync
 from trafficcam.tracking.bytetrack import ByteTracker
@@ -39,7 +42,9 @@ def parse_args() -> argparse.Namespace:
         metavar="FILE",
         help="replay the detections in these track logs instead of using the camera",
     )
-    parser.add_argument("--no-inference", action="store_true", help="log frames only")
+    parser.add_argument(
+        "--no-inference", action="store_true", help="detect nothing; signals are still read"
+    )
     parser.add_argument("--jsonl", type=Path, help="also write passages to this file")
     parser.add_argument("--debug-rerun", action="store_true", help="serve a Rerun debug view")
     parser.add_argument(
@@ -55,7 +60,7 @@ def open_source(config: SiteConfig, video: Path | None) -> FrameSource:
     if video is not None:
         from trafficcam.sources.video_file import VideoFileSource
 
-        return VideoFileSource(video, size=LORES_SIZE)
+        return VideoFileSource(video, size=LORES_SIZE, regions=config.lamp_regions())
 
     # Imported here because picamera2 only exists on the Pi.
     from trafficcam.sources.picamera import PiCameraSource
@@ -66,6 +71,7 @@ def open_source(config: SiteConfig, video: Path | None) -> FrameSource:
         fps=config.camera.fps,
         bitrate=LIVE_BITRATE,
         live_url=LIVE_URL,
+        regions=config.lamp_regions(),
     )
 
 
@@ -76,13 +82,15 @@ def open_backend(config: SiteConfig) -> contextlib.AbstractContextManager[Infere
     return HailoBackend(config.inference, config.camera.size)
 
 
-def open_detectors(config: SiteConfig, config_hash: str) -> list[Detector]:
+def open_detectors(config: SiteConfig, config_hash: str, signals: Signals) -> list[Detector]:
     """The detectors that site.yaml has settings for."""
     detectors: list[Detector] = []
     if config.detectors.box_junction is not None:
         detectors.append(BoxJunctionStops(config, config_hash))
     if config.detectors.banned_turns is not None:
-        detectors.append(BannedTurns(config, config_hash))
+        detectors.append(BannedTurns(config, config_hash, signals))
+    if config.detectors.red_light is not None:
+        detectors.append(RedLight(config, config_hash, signals))
     return detectors
 
 
@@ -112,19 +120,24 @@ def main() -> None:
         outputs = open_outputs(stack, config, config_hash, args, LORES_SIZE, watchdog)
         replay = TrackLogReplay(args.tracks, config_hash) if args.tracks else None
         source = replay or open_source(config, args.video)
-        if args.no_inference:
-            for frame in source.frames():
-                if outputs.rerun is not None:
-                    outputs.rerun.frame(frame)
+        if replay is not None:
+            backend = replay
+        elif args.no_inference:
+            backend = NullBackend()
         else:
-            pipeline = Pipeline(
-                replay or stack.enter_context(open_backend(config)),
-                ByteTracker(config.tracking, config.camera.fps),
-                SceneGeometry(config),
-                PassageBuilder(config, config_hash),
-                open_detectors(config, config_hash),
-            )
-            run(source, pipeline, outputs.observers, outputs.sinks)
+            backend = stack.enter_context(open_backend(config))
+        signals = Signals(config, config_hash)
+        pipeline = Pipeline(
+            backend,
+            ByteTracker(config.tracking, config.camera.fps),
+            SceneGeometry(config),
+            PassageBuilder(config, config_hash, signals),
+            open_detectors(config, config_hash, signals),
+            signals,
+            # A track log carries the signal states that were read when it was recorded.
+            replay or LampRoiObserver(config),
+        )
+        run(source, pipeline, outputs.observers, outputs.sinks)
 
     if outputs.rerun is not None:
         print("replay finished; serving Rerun until interrupted", flush=True)

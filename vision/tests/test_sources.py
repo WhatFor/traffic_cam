@@ -67,3 +67,16 @@ def test_sensor_time_to_utc_offsets_the_boot_clock() -> None:
     captured = sensor_time_to_utc(boottime_ns - 500_000_000, boottime_ns, realtime_ns)
 
     assert captured == EPOCH + timedelta(seconds=1_791_000_000) - timedelta(milliseconds=500)
+
+
+def test_video_file_samples_regions_at_the_clips_own_size(clip: Path) -> None:
+    regions = {"lamp": (10, 10, 5, 5)}
+
+    frames = list(VideoFileSource(clip, size=(32, 24), regions=regions).frames())
+
+    for frame in frames:
+        assert frame.samples["lamp"] == pytest.approx(RED, abs=20)
+
+
+def test_video_file_samples_nothing_unless_asked(clip: Path) -> None:
+    assert next(VideoFileSource(clip, size=(32, 24)).frames()).samples == {}

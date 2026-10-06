@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 import yaml
 
-from trafficcam.config import ConfigError, Zone, load_site_config
+from trafficcam.config import ConfigError, SiteConfig, Zone, load_site_config
 
 SITE_YAML = Path(__file__).parents[2] / "config" / "site.yaml"
 
@@ -126,6 +126,15 @@ def _set(path: str, value: Any) -> Callable[[dict[str, Any]], None]:
         (_set("signal_heads.sh_south_primary.controls", ["stopline_north"]), "stopline_north"),
         (_set("detectors.box_junction.exempt_movements", ["right_turn"]), "right_turn"),
         (_set("detectors.banned_turns", {"movements": ["no_such_turn"]}), "no_such_turn"),
+        (
+            _set(
+                "detectors.banned_turns",
+                {"movements": ["left_turn_watch"], "signal_heads": ["no_such_head"]},
+            ),
+            "no_such_head",
+        ),
+        (_set("signal_heads.sh_south_primary.lamps", {}), "lamps"),
+        (_set("signal_heads.sh_south_primary.lamps.blue", [640, 550, 8, 8]), "lamps"),
         (_set("zones.exit_east.entry_heading", [0, 90]), "only for approach zones"),
         (_set("zones.approach_south.entry_heading", [0, 400]), "entry_heading"),
     ],
@@ -152,3 +161,14 @@ def test_an_entry_heading_range_can_wrap_past_zero() -> None:
 
     assert [plain.accepts_heading(h) for h in (119, 120, 200, 201)] == [False, True, True, False]
     assert [wrapped.accepts_heading(h) for h in (349, 355, 10, 21)] == [False, True, True, False]
+
+
+def test_a_head_may_list_only_the_lamps_the_camera_can_see() -> None:
+    data = copy.deepcopy(FULL)
+    data["signal_heads"]["side_on"] = {"lamps": {"green": [700, 540, 3, 3]}}
+
+    config = SiteConfig.model_validate(data)
+
+    assert config.signal_heads["side_on"].controls == []
+    assert config.lamp_regions()["side_on/green"] == (700, 540, 3, 3)
+    assert config.heads_controlling("stopline_south") == ["sh_south_primary"]

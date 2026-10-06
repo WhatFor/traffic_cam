@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from trafficcam.contracts import Event, Passage
+from trafficcam.contracts import Event, Passage, SignalChange
 
 
 class JsonlSink:
@@ -17,7 +17,10 @@ class JsonlSink:
     def event(self, event: Event) -> None:
         self._write(event)
 
-    def _write(self, record: Passage | Event) -> None:
+    def signal(self, change: SignalChange) -> None:
+        self._write(change)
+
+    def _write(self, record: Passage | Event | SignalChange) -> None:
         self._file.write(record.model_dump_json(by_alias=True) + "\n")
         self._file.flush()
 

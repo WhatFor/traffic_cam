@@ -14,7 +14,7 @@ from prometheus_client import (
 from prometheus_client.core import CounterMetricFamily
 from prometheus_client.registry import Collector
 
-from trafficcam.contracts import Event, Passage
+from trafficcam.contracts import Event, Passage, SignalChange, SignalState
 from trafficcam.health.image_quality import measure
 from trafficcam.pipeline import FrameResult
 
@@ -83,6 +83,12 @@ class Metrics:
             ["type"],
             **names,
         )
+        self._signal_changes = Counter(
+            "signal_changes", "Changes of state seen on a signal head.", ["head"], **names
+        )
+        self._signal_unknown = Gauge(
+            "signal_unknown", "1 while a signal head's state is unknown, else 0.", ["head"], **names
+        )
         self._mqtt_connected = Gauge(
             "mqtt_connected", "1 if connected to the MQTT broker, else 0.", **names
         )
@@ -114,6 +120,8 @@ class Metrics:
         self._last_frame_at = frame.timestamp
         self._inference.observe(result.inference_ms / 1000)
         self._detections.set(len(result.detections))
+        for head, state in result.signals.items():
+            self._signal_unknown.labels(head=head).set(state == SignalState.unknown)
         self._tracks.set(len(result.observation.tracks))
         due = self._measured_at is None or (
             frame.timestamp - self._measured_at >= IMAGE_QUALITY_INTERVAL
@@ -132,6 +140,9 @@ class Metrics:
     def event(self, event: Event) -> None:
         self._events.labels(type=event.type).inc()
         self._last_event.labels(type=event.type).set_to_current_time()
+
+    def signal(self, change: SignalChange) -> None:
+        self._signal_changes.labels(head=change.head_id).inc()
 
     def close(self) -> None:
         if self._server is not None:

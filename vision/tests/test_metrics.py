@@ -1,13 +1,15 @@
 """Metrics are derived from frame results and passages, and served over HTTP."""
 
+import dataclasses
 import urllib.request
 from datetime import timedelta
 
 import numpy as np
 from test_geometry import at
-from test_pipeline import DRIVE_AND_GONE, an_event, run
+from test_pipeline import DRIVE_AND_GONE, a_signal_change, an_event, run
 from test_sinks import free_port
 
+from trafficcam.contracts import SignalState
 from trafficcam.health import metrics as metrics_module
 from trafficcam.health.metrics import Metrics
 from trafficcam.pipeline import FrameResult
@@ -30,6 +32,8 @@ def with_image(result: FrameResult, seconds: float, level: int) -> FrameResult:
         result.observation,
         result.passages,
         result.events,
+        result.signals,
+        result.signal_changes,
     )
 
 
@@ -79,6 +83,20 @@ def test_events_are_counted_by_type() -> None:
     assert value(metrics, "events_total", type="box_junction_stop") == 2
     assert value(metrics, "events_total", type="red_light") == 1
     assert (value(metrics, "last_event_timestamp_seconds", type="red_light") or 0) > 0
+
+
+def test_signal_changes_are_counted_and_unknown_heads_flagged() -> None:
+    metrics = Metrics()
+    _, (result, *_) = run(DRIVE_AND_GONE)
+    states = {"near": SignalState.green, "far": SignalState.unknown}
+
+    metrics.signal(a_signal_change("near"))
+    metrics.signal(a_signal_change("near"))
+    metrics.observe(dataclasses.replace(result, signals=states))
+
+    assert value(metrics, "signal_changes_total", head="near") == 2
+    assert value(metrics, "signal_unknown", head="near") == 0
+    assert value(metrics, "signal_unknown", head="far") == 1
 
 
 def test_drop_counts_and_mqtt_state_are_read_when_scraped() -> None:

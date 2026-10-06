@@ -19,6 +19,8 @@ The first dashboard, System, shows vision's metrics (0009) and a row of host met
 
 A second dashboard, Traffic (`/d/traffic`), reads passages and events from TimescaleDB through a PostgreSQL datasource provisioned the same way. Its queries bucket the hypertables directly; the build plan's continuous aggregates wait until the tables are large enough to need them.
 
+A third, Signals (`/d/signals`), reads signal changes, crossings by signal state and the red-light and amber events from the same datasource: each head's state over time, how long each state and cycle lasts, and how much of the time each head could not be read (0015, 0016).
+
 ## Consequences
 
 - Grafana connects to the database as its owner, with the password from `deploy/.env`. Anyone who can edit a panel's query can change data. A read-only role would close that; nobody but the owner uses this Grafana.
@@ -26,4 +28,4 @@ A second dashboard, Traffic (`/d/traffic`), reads passages and events from Times
 - A dashboard edited in the UI and not exported is lost on the next reload of the page.
 - Removing a file from the repo removes the dashboard from Grafana.
 - The System dashboard has no throttling flags: node-exporter does not have them until the `vcgencmd` textfile collector exists. CPU frequency, which drops when the Pi throttles, stands in.
-- Alert rules are not provisioned yet.
+- Alert rules are provisioned the same way (0012).

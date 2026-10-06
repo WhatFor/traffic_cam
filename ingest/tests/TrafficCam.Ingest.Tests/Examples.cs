@@ -10,6 +10,7 @@ static class Examples
 {
     public static string PassageJson { get; } = Read("passage.json");
     public static string EventJson { get; } = Read("event.json");
+    public static string SignalChangeJson { get; } = Read("signal_change.json");
 
     public static byte[] Payload(params (string Name, JsonNode? Value)[] changes) => Changed(PassageJson, changes);
 
@@ -31,6 +32,15 @@ static class Examples
         var payload = id is { } given ? EventPayloadWithId(given) : EventPayload();
         Assert.True(EventParser.TryParse(payload, out var @event, out var error), error);
         return @event;
+    }
+
+    public static byte[] SignalChangePayload(params (string Name, JsonNode? Value)[] changes) =>
+        Changed(SignalChangeJson, changes);
+
+    public static SignalChange SignalChange()
+    {
+        Assert.True(SignalChangeParser.TryParse(SignalChangePayload(), out var change, out var error), error);
+        return change;
     }
 
     static string Read(string file) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, file));

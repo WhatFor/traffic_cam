@@ -1,0 +1,722 @@
+{
+  "uid": "signals",
+  "title": "Signals",
+  "tags": [
+    "trafficcam"
+  ],
+  "schemaVersion": 41,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1m",
+  "timezone": "browser",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Red-light events",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "SELECT count(*) FROM events WHERE $__timeFilter(ts) AND type = 'red_light'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "description": "A stop line crossed on red, after the grace period, by a vehicle that then went on.",
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Amber crossings",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "SELECT count(*) FROM events WHERE $__timeFilter(ts) AND type = 'amber_crossing'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Crossings on red and amber",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "SELECT count(*) FROM passages WHERE $__timeFilter(first_seen) AND stopline IS NOT NULL AND signal_state_at_crossing = 'red_amber'",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "description": "Recorded on the passage; raises no event.",
+      "id": 3,
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Crossings with a known signal",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "SELECT avg((signal_state_at_crossing NOT IN ('unknown'))::int) FROM passages WHERE $__timeFilter(first_seen) AND stopline IS NOT NULL AND signal_state_at_crossing IS NOT NULL",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "description": "Of crossings at lines that have signal heads, the share where the heads could be read.",
+      "id": 4,
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "state-timeline",
+      "title": "Signal heads",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "(SELECT DISTINCT ON (head_id) $__timeFrom()::timestamptz AS \"time\", head_id, to_state FROM signal_changes WHERE ts < $__timeFrom() ORDER BY head_id, ts DESC) UNION ALL (SELECT ts, head_id, to_state FROM signal_changes WHERE $__timeFilter(ts)) ORDER BY 1",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "head_id"
+            ],
+            "keepFields": false,
+            "naming": {
+              "asLabels": true
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "red": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "red"
+                },
+                "red_amber": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "red and amber"
+                },
+                "green": {
+                  "color": "green",
+                  "index": 2,
+                  "text": "green"
+                },
+                "amber": {
+                  "color": "yellow",
+                  "index": 3,
+                  "text": "amber"
+                },
+                "unknown": {
+                  "color": "#808080",
+                  "index": 4,
+                  "text": "unknown"
+                }
+              }
+            }
+          ],
+          "displayName": "${__field.labels.head_id}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "never",
+        "rowHeight": 0.85,
+        "alignValue": "left",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "description": "Each head's state over time. Zoom in to a few minutes to see single cycles.",
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "How long each state lasts",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "WITH spans AS ( SELECT head_id, to_state AS state, ts, extract(epoch FROM lead(ts) OVER (PARTITION BY head_id ORDER BY ts) - ts) AS lasted FROM signal_changes WHERE $__timeFilter(ts)) SELECT head_id AS head, state, count(*) AS times, round(avg(lasted)::numeric, 1) AS \"mean (s)\", round(min(lasted)::numeric, 1) AS \"shortest (s)\", round(max(lasted)::numeric, 1) AS \"longest (s)\" FROM spans WHERE lasted IS NOT NULL GROUP BY 1, 2 ORDER BY 1, 2",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "minWidth": 50
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 12
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Cycle length",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "SELECT ts AS \"time\", head_id AS metric, extract(epoch FROM ts - lag(ts) OVER (PARTITION BY head_id ORDER BY ts)) AS cycle FROM signal_changes WHERE to_state = 'green' AND $__timeFilter(ts) ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "showPoints": "always",
+            "pointSize": 4,
+            "fillOpacity": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Time from one start of green to the next, per head.",
+      "id": 7,
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Green time",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "WITH spans AS ( SELECT head_id, to_state AS state, ts, extract(epoch FROM lead(ts) OVER (PARTITION BY head_id ORDER BY ts) - ts) AS lasted FROM signal_changes WHERE $__timeFilter(ts)) SELECT ts AS \"time\", head_id AS metric, lasted AS green FROM spans WHERE state = 'green' AND lasted IS NOT NULL ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "showPoints": "always",
+            "pointSize": 4,
+            "fillOpacity": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "How long each green lasted, per head.",
+      "id": 8,
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "table",
+      "title": "Share of time unknown",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "WITH spans AS ( SELECT head_id, to_state AS state, ts, extract(epoch FROM lead(ts) OVER (PARTITION BY head_id ORDER BY ts) - ts) AS lasted FROM signal_changes WHERE $__timeFilter(ts)) SELECT head_id AS head, round((100 * coalesce(sum(lasted) FILTER (WHERE state = 'unknown'), 0) / sum(lasted))::numeric, 1) AS \"unknown (%)\", count(*) FILTER (WHERE state = 'unknown') AS times FROM spans WHERE lasted IS NOT NULL GROUP BY 1 ORDER BY 1",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "minWidth": 50
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "description": "How much of the period each head could not be read.",
+      "id": 9,
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 6,
+        "h": 8
+      }
+    },
+    {
+      "type": "table",
+      "title": "Crossings by signal",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "SELECT replace(stopline, 'stopline_', '') AS line, coalesce(signal_state_at_crossing, 'no heads') AS signal, count(*) AS crossings FROM passages WHERE $__timeFilter(first_seen) AND stopline IS NOT NULL GROUP BY 1, 2 ORDER BY 1, 3 DESC",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "minWidth": 50
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "red": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "red"
+                },
+                "red_amber": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "red and amber"
+                },
+                "green": {
+                  "color": "green",
+                  "index": 2,
+                  "text": "green"
+                },
+                "amber": {
+                  "color": "yellow",
+                  "index": 3,
+                  "text": "amber"
+                },
+                "unknown": {
+                  "color": "#808080",
+                  "index": 4,
+                  "text": "unknown"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 6,
+        "y": 25,
+        "w": 6,
+        "h": 8
+      }
+    },
+    {
+      "type": "table",
+      "title": "Latest red-light and amber events",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "SELECT ts AS \"time\", type, replace(attrs->>'line', 'stopline_', '') AS line, attrs->>'movement' AS movement, coalesce(attrs->>'time_into_red_s', attrs->>'time_into_amber_s')::numeric AS \"into state (s)\" FROM events WHERE $__timeFilter(ts) AND type IN ('red_light', 'amber_crossing') ORDER BY ts DESC LIMIT 100",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "minWidth": 50
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "table",
+      "title": "Banned turns and the signals",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "SELECT ts AS \"time\", attrs->>'turn' AS turn, head.key AS head, head.value->>'at_start' AS \"at start\", (head.value->>'green_s')::numeric AS \"green during turn (s)\" FROM events, jsonb_each(attrs->'signals') AS head WHERE $__timeFilter(ts) AND type = 'banned_turn' ORDER BY ts DESC, 3 LIMIT 100",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "minWidth": 50
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "red": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "red"
+                },
+                "red_amber": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "red and amber"
+                },
+                "green": {
+                  "color": "green",
+                  "index": 2,
+                  "text": "green"
+                },
+                "amber": {
+                  "color": "yellow",
+                  "index": 3,
+                  "text": "amber"
+                },
+                "unknown": {
+                  "color": "#808080",
+                  "index": 4,
+                  "text": "unknown"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "description": "What each listed head showed when the vehicle was first seen, and for how long it was green while the vehicle was in view.",
+      "id": 12,
+      "gridPos": {
+        "x": 12,
+        "y": 29,
+        "w": 12,
+        "h": 12
+      }
+    }
+  ]
+}

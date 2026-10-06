@@ -6,12 +6,14 @@ import re
 import sys
 import threading
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TextIO
 
 import supervision as sv
 
+from trafficcam.contracts import SignalState
 from trafficcam.geometry import Observation
 from trafficcam.pipeline import FrameResult
 from trafficcam.tracklog import SCHEMA, Header, to_record
@@ -25,7 +27,7 @@ FLUSH_INTERVAL_S = 1.0
 RETRY_S = 60.0
 CLOSE_TIMEOUT_S = 2.0
 
-_Item = tuple[int, datetime, sv.Detections, Observation]
+_Item = tuple[int, datetime, sv.Detections, Observation, Mapping[str, SignalState]]
 
 
 class TrackLogWriter:
@@ -75,7 +77,13 @@ class TrackLogWriter:
         try:
             # Not the frame itself: a queue of images would be gigabytes.
             self._queue.put(
-                (frame.index, frame.timestamp, result.detections, result.observation),
+                (
+                    frame.index,
+                    frame.timestamp,
+                    result.detections,
+                    result.observation,
+                    result.signals,
+                ),
                 block=self._wait_when_full,
             )
         except queue.Full:
@@ -108,13 +116,18 @@ class TrackLogWriter:
         self._close_file()
 
     def _write(
-        self, index: int, timestamp: datetime, detections: sv.Detections, observation: Observation
+        self,
+        index: int,
+        timestamp: datetime,
+        detections: sv.Detections,
+        observation: Observation,
+        signals: Mapping[str, SignalState],
     ) -> None:
         hour = timestamp.astimezone(UTC).strftime(HOUR_FORMAT)
         if hour != self._hour:
             self._open(hour, timestamp)
         assert self._file is not None
-        record = to_record(index, timestamp, detections, observation)
+        record = to_record(index, timestamp, detections, observation, signals)
         self._file.write(record.model_dump_json(by_alias=True) + "\n")
         if time.monotonic() >= self._flush_at:
             self._file.flush()

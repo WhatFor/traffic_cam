@@ -11,6 +11,7 @@ from trafficcam.config import SiteConfig
 from trafficcam.contracts import Passage
 from trafficcam.geometry import Crossing, Observation
 from trafficcam.inference import CLASS_NAMES
+from trafficcam.signals import Signals
 
 # A heading is taken from where a track was first seen in a zone to where it is once it
 # has been followed for this long and has moved this far; less than that is mostly jitter.
@@ -35,10 +36,16 @@ class _OpenPassage:
 class PassageBuilder:
     """Follows every track and returns its passage once the track has gone for good."""
 
-    def __init__(self, config: SiteConfig, config_hash: str) -> None:
+    def __init__(
+        self, config: SiteConfig, config_hash: str, signals: Signals | None = None
+    ) -> None:
         self._camera = config.camera.id
         self._config_hash = config_hash
+        self._signals = signals
         self._zones = config.zones
+        self._line_lag = {
+            name: timedelta(seconds=line.lag_s) for name, line in config.lines.items()
+        }
         # After this long unseen, the tracker will not bring a track back.
         self._lost = timedelta(seconds=config.tracking.lost_s)
         self._open: dict[int, _OpenPassage] = {}
@@ -117,6 +124,12 @@ class PassageBuilder:
         movement = None
         if entry is not None and exit_ is not None:
             movement = f"{self._zones[entry].arm}->{self._zones[exit_].arm}"
+        # Looked up now, not when the line was crossed: by now the signal's state at that
+        # moment has settled.
+        signal = None
+        if state.crossing is not None and self._signals is not None:
+            line = state.crossing.line
+            signal = self._signals.line_state(line, state.crossing.timestamp - self._line_lag[line])
         # Derived from what identifies the trip, so replaying a clip gives the same ids.
         name = f"trafficcam/{self._camera}/{state.first_seen.isoformat()}/{track_id}"
         return Passage.model_validate(
@@ -134,8 +147,8 @@ class PassageBuilder:
                 "movement": movement,
                 "stopline": state.crossing.line if state.crossing else None,
                 "stopline_crossed_at": state.crossing.timestamp if state.crossing else None,
-                "signal_state_at_crossing": None,
-                "signal_source": None,
+                "signal_state_at_crossing": signal.state if signal else None,
+                "signal_source": signal.source if signal else None,
                 "speed_kmh": None,
                 "flags": {},
             }

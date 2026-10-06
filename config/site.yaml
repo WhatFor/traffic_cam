@@ -68,8 +68,10 @@ zones:
     polygon: [[1468, 676], [1488, 660], [1512, 656], [1512, 722], [1480, 730], [1468, 716]]
 
 lines:
-  stopline_west_eastbound: { points: [[708, 956], [937, 1000]], direction: inbound }
-  stopline_west_northbound: { points: [[631, 852], [781, 854]], direction: inbound }   # left-turn slip lane
+  # West-arm traffic drives away from the camera, so the tracked point is a vehicle's rear:
+  # lag_s is roughly how long before that its front crossed the line.
+  stopline_west_eastbound: { points: [[708, 956], [937, 1000]], direction: inbound, lag_s: 0.7 }
+  stopline_west_northbound: { points: [[631, 852], [781, 854]], direction: inbound, lag_s: 0.7 }   # left-turn slip lane
   stopline_north: { points: [[813, 604], [712, 689]], direction: inbound }
 # Right turns, which may wait in the box for oncoming traffic, and the left turn out of the
 # south arm, which is forbidden.
@@ -80,7 +82,30 @@ movements:
   right_from_south: { from: approach_south, to: exit_east }
   right_from_west: { from: approach_west, to: exit_south }
   left_from_south: { from: approach_south, to: exit_west }
-signal_heads: {}
+# Lamp squares are [x, y, w, h] in full-frame pixels, found with tools/lamp_spike.py. The letters
+# are the ones used in docs/spikes/lamp-readability.md.
+signal_heads:
+  west_north_near:  # A
+    lamps: { red: [592, 746, 5, 5], amber: [593, 755, 5, 5], green: [592, 766, 5, 5] }
+    controls: [stopline_west_northbound]
+  west_north_far:  # B
+    lamps: { red: [793, 701, 5, 5], amber: [792, 711, 5, 5], green: [792, 718, 5, 5] }
+    controls: [stopline_west_northbound]
+  west_ahead_left:  # C
+    lamps: { red: [815, 764, 5, 5], amber: [815, 773, 5, 5], green: [815, 784, 5, 5] }
+    controls: [stopline_west_eastbound]
+  west_ahead_right:  # E: its red is dim, the hood hides most of it
+    lamps: { red: [1044, 813, 3, 3], amber: [1043, 822, 3, 3], green: [1044, 831, 3, 3] }
+    controls: [stopline_west_eastbound]
+  west_ahead_far:  # G: far side, small
+    lamps: { red: [1428, 483, 3, 3], amber: [1426, 489, 3, 3], green: [1425, 496, 3, 3] }
+    controls: [stopline_west_eastbound]
+  south:  # D: seen from the side; only its green arrows can be read
+    lamps: { green: [971, 640, 3, 3] }
+    controls: [right_from_south, left_from_south]
+  crossing_west_exit:  # F: pedestrian signal
+    lamps: { red: [1091, 886, 3, 3], green: [1091, 895, 3, 3] }
+    controls: []
 
 detectors:
   box_junction:
@@ -88,7 +113,9 @@ detectors:
     stationary_radius_px: 10      # a standing vehicle's ground point wanders by about 4 px
     exempt_movements:
       [right_from_east, right_from_east_hidden, right_from_north, right_from_south, right_from_west]
-  banned_turns: { movements: [left_from_south] }
+  banned_turns:
+    movements: [left_from_south]
+    signal_heads: [south, crossing_west_exit]   # what these showed is noted on the event
   red_light: { grace_s: 0.5 }
   incident: { decel_mps2: 6.0, notify_min_confidence: 0.7 }
 

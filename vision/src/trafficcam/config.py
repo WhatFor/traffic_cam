@@ -93,6 +93,10 @@ class Line(_Section):
     direction: Literal["inbound", "outbound"]
     # Observations on the far side before a crossing is believed.
     confirm_frames: PositiveInt = 2
+    # A vehicle is tracked by the bottom of its box. Where traffic drives away from the
+    # camera that is its rear, which crosses the line about this long after its front did.
+    # The signal is read as it was that much earlier.
+    lag_s: NonNegativeFloat = 0.0
 
 
 class Movement(_Section):
@@ -100,15 +104,16 @@ class Movement(_Section):
     to: str
 
 
-class Lamps(_Section):
-    red: Rect
-    amber: Rect
-    green: Rect
+LampColour = Literal["red", "amber", "green"]
 
 
 class SignalHead(_Section):
-    lamps: Lamps
-    controls: list[str]
+    # The small square sampled at each lamp. A head the camera sees only partly lists
+    # fewer than three: a pedestrian signal has red and green, and a head seen from the
+    # side may show nothing but its green.
+    lamps: dict[LampColour, Rect] = Field(min_length=1)
+    # Stop lines and movements this head controls. Empty for a pedestrian signal.
+    controls: list[str] = []
 
 
 class BoxJunction(_Section):
@@ -121,10 +126,15 @@ class BoxJunction(_Section):
 class BannedTurns(_Section):
     # Names from `movements`: each passage that makes one raises an event.
     movements: list[str]
+    # Signal heads whose state is noted on the event.
+    signal_heads: list[str] = []
 
 
 class RedLight(_Section):
+    # A crossing this soon after the signal turned red is let off.
     grace_s: NonNegativeFloat
+    # Whether a crossing on amber raises an event of its own.
+    amber_events: bool = True
 
 
 class Speed(_Section):
@@ -190,9 +200,20 @@ class SiteConfig(_Section):
             if any(outside(x, y) for x, y in line.points):
                 yield f"lines.{name} is outside the frame"
         for name, head in self.signal_heads.items():
-            for colour, (x, y, w, h) in head.lamps:
+            for colour, (x, y, w, h) in head.lamps.items():
                 if outside(x + w, y + h):
                     yield f"signal_heads.{name}.lamps.{colour} is outside the frame"
+
+    def lamp_regions(self) -> dict[str, Rect]:
+        """Every lamp's square, keyed "head/colour", for a source to sample."""
+        return {
+            f"{name}/{colour}": rect
+            for name, head in self.signal_heads.items()
+            for colour, rect in head.lamps.items()
+        }
+
+    def heads_controlling(self, target: str) -> list[str]:
+        return [name for name, head in self.signal_heads.items() if target in head.controls]
 
     def _reference_errors(self) -> Iterable[str]:
         if self.junction not in self.zones:
@@ -214,6 +235,10 @@ class SiteConfig(_Section):
             for movement in movements:
                 if movement not in self.movements:
                     yield f"detectors.{section} names unknown movement '{movement}'"
+        if self.detectors.banned_turns is not None:
+            for head in self.detectors.banned_turns.signal_heads:
+                if head not in self.signal_heads:
+                    yield f"detectors.banned_turns.signal_heads names unknown head '{head}'"
 
 
 def load_site_config(path: Path) -> tuple[SiteConfig, str]:

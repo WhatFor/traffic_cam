@@ -1,8 +1,9 @@
 """Track logs: what the writer puts on disk, and what a replay makes of it."""
 
+import dataclasses
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from test_geometry import nothing
 from test_passages import CONFIG
 from test_pipeline import CONFIG_HASH, DRIVE, DRIVE_AND_GONE, NO_IMAGE, pipeline, run
 
+from trafficcam.contracts import SignalState
 from trafficcam.geometry import Observation, SceneGeometry
 from trafficcam.pipeline import FrameResult
 from trafficcam.sources import Frame
@@ -45,6 +47,8 @@ def empty_result(index: int, timestamp: datetime) -> FrameResult:
         observation=SceneGeometry(CONFIG).observe(nothing(), timestamp),
         passages=[],
         events=[],
+        signals={},
+        signal_changes=[],
     )
 
 
@@ -142,11 +146,15 @@ def test_a_full_queue_drops_and_counts_without_blocking(
     to_record = writer_module.to_record
 
     def stalled(
-        index: int, timestamp: datetime, detections: sv.Detections, observation: Observation
+        index: int,
+        timestamp: datetime,
+        detections: sv.Detections,
+        observation: Observation,
+        signals: Mapping[str, SignalState],
     ) -> FrameRecord:
         writing.set()
         release.wait()
-        return to_record(index, timestamp, detections, observation)
+        return to_record(index, timestamp, detections, observation, signals)
 
     monkeypatch.setattr(writer_module, "to_record", stalled)
     writer = writer_for(tmp_path, max_queued=3)
@@ -241,3 +249,40 @@ def test_a_line_that_is_not_a_record_names_its_file_and_line(tmp_path: Path) -> 
 
     with pytest.raises(ValueError, match=r"2026-10-04T13\.jsonl:1"):
         read(tmp_path)
+
+
+def test_signal_states_are_recorded_and_replayed(tmp_path: Path) -> None:
+    showing = [
+        {"near": SignalState.red},
+        {"near": SignalState.red},
+        {"near": SignalState.red_amber},
+    ]
+    results = [
+        dataclasses.replace(empty_result(index, HOUR + timedelta(seconds=index)), signals=states)
+        for index, states in enumerate(showing)
+    ]
+    record(tmp_path, results)
+
+    _, *frames = read(tmp_path)
+    replay = TrackLogReplay(sorted(tmp_path.iterdir()), CONFIG_HASH)
+    readings = [dict(replay.read(frame)) for frame in replay.frames()]
+
+    assert [frame.signals for frame in frames if isinstance(frame, FrameRecord)] == showing
+    assert [reading["near"].state for reading in readings] == [
+        SignalState.red,
+        SignalState.red,
+        SignalState.red_amber,
+    ]
+    # Each state is dated from the frame it first showed on.
+    assert readings[1]["near"].since == HOUR
+    assert readings[2]["near"].since == HOUR + timedelta(seconds=2)
+
+
+def test_a_log_from_before_signals_were_read_replays_with_none(tmp_path: Path) -> None:
+    record(tmp_path, [empty_result(0, HOUR)])
+    (path,) = tmp_path.iterdir()
+    path.write_text(path.read_text().replace(',"signals":{}', ""))
+
+    replay = TrackLogReplay([path], CONFIG_HASH)
+
+    assert [dict(replay.read(frame)) for frame in replay.frames()] == [{}]
