@@ -184,7 +184,7 @@ traffic-cam/
 │   │   ├── health/        # metrics, image quality, camera alignment, watchdog
 │   │   └── debug/         # Rerun sink
 │   └── tests/             # unit tests + fixture tests on recorded track logs
-├── ingest/                # .NET solution: worker, API, notifier, tests
+├── ingest/                # .NET solution: ingest (worker, notifier), web (clips site), tests
 ├── db/migrations/         # plain SQL, applied by ingest at startup
 ├── deploy/
 │   ├── compose.yaml
@@ -471,7 +471,7 @@ A mode that records 10 minutes every few hours across day, night and rain to the
 
 ## Ingest, storage and notifications
 
-A single .NET 10 service, `ingest`, turns MQTT messages into database rows, serves clip files, and sends notifications. It runs as a container in the Compose stack, from Microsoft's stock ASP.NET runtime image with the published build bind-mounted. There is no custom image and no registry.
+A .NET 10 service, `ingest`, turns MQTT messages into database rows and sends notifications. A second, `web`, lists the clips and plays them in a browser (ADR 0018). Each runs as a container in the Compose stack, from Microsoft's stock ASP.NET runtime image with the published build bind-mounted. There is no custom image and no registry.
 
 ### Ingest
 
@@ -494,7 +494,7 @@ A single .NET 10 service, `ingest`, turns MQTT messages into database rows, serv
 - **Email content**: sent when the clip is ready, about 60 s after the event. It contains the time, event type, confidence and vehicles involved, the still frame attached as a JPEG, and a link to the clip.
 - **No clip attachments**: a 60 s clip is about 45 MB, over most providers' 20–25 MB limit.
 - **Optional ntfy push** straight away, with the still frame, for when a one-minute delay is too long.
-- **Clip links**: `ingest` serves `/mnt/data/clips` read-only over HTTP, reachable only over Tailscale.
+- **Clip links**: the clips site, `web`, has a page for each clip at `/clips/{id}`, reachable from the local network and over Tailscale.
 - **Secrets**: SMTP and database credentials live in `deploy/.env`, which is git-ignored. Commit `deploy/.env.example`.
 
 ### Public stats (later)
@@ -550,7 +550,8 @@ Nothing is forwarded on the router; everything is reached over the LAN or Tailsc
 | 1883 | Mosquitto | localhost and tailnet |
 | 3000 | Grafana | tailnet |
 | 5432 | PostgreSQL | localhost only |
-| 8080 | ingest (clips, API) | tailnet |
+| 8080 | ingest (metrics) | localhost |
+| 8081 | web (clips site) | LAN and tailnet |
 | 8428 | VictoriaMetrics | localhost |
 | 8554 | MediaMTX RTSP | tailnet |
 | 8889 | MediaMTX WebRTC | tailnet |
@@ -695,7 +696,7 @@ Acceptance:
 ### Phase 7 — Notifications
 
 - [ ] Notifier: rules config, SMTP email with still frame and clip link, cooldown, optional ntfy.
-- [ ] Clip file endpoint on `ingest`, reachable over Tailscale only.
+- [x] Clip pages and files, from the `web` service on the local network (ADR 0018).
 
 Acceptance: a test incident produces an email within 90 s, with the still frame and a working clip link. A second test within 10 minutes is suppressed by the cooldown.
 

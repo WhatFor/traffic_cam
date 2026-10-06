@@ -1,7 +1,7 @@
 # Infrastructure stack on the Pi. Vision runs on the host under systemd, not here.
 #
 # Networking:
-#   - mosquitto, timescaledb and ingest sit on the Compose network and publish ports.
+#   - mosquitto, timescaledb, ingest and web sit on the Compose network and publish ports.
 #   - grafana, victoriametrics, node-exporter and mediamtx use the host network.
 #     The scrape targets (vision :9200, node-exporter :9100) listen on the host's
 #     loopback only, which a bridged container cannot reach, and Grafana has to
@@ -107,6 +107,36 @@ services:
     healthcheck:
       # The image has no curl or wget, so the program checks itself.
       test: ["CMD", "dotnet", "TrafficCam.Ingest.dll", "--healthcheck"]
+      interval: 60s
+      start_period: 60s
+      start_interval: 5s
+
+  # The clips site: lists and plays what is in /mnt/data/clips. Read-only, and open to
+  # the local network without a login. Published by `just deploy` into ./web, as ingest is.
+  web:
+    <<: *service
+    image: mcr.microsoft.com/dotnet/aspnet:10.0.12
+    user: app
+    working_dir: /app
+    command: ["dotnet", "TrafficCam.Web.dll"]
+    depends_on:
+      # Ingest creates the tables this reads.
+      ingest: { condition: service_healthy }
+    ports:
+      - "8081:8080"
+    environment:
+      Database__Host: timescaledb
+      Database__Password: ${POSTGRES_PASSWORD:?set it in deploy/.env}
+    volumes:
+      - ./web:/app:ro
+      # At the same path as on the host, which is the path the database has for each clip.
+      - type: bind
+        source: /mnt/data/clips
+        target: /mnt/data/clips
+        read_only: true
+        bind: { create_host_path: false }
+    healthcheck:
+      test: ["CMD", "dotnet", "TrafficCam.Web.dll", "--healthcheck"]
       interval: 60s
       start_period: 60s
       start_interval: 5s

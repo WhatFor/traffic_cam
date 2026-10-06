@@ -1,0 +1,19 @@
+@model ClipEntry
+@{
+    // Opens the clip a little before the moment, to see it coming.
+    var from = Math.Max(0, Model.OffsetSeconds - ClipModel.LeadInSeconds);
+}
+<li>
+    <a href="/clips/@Model.ClipId?t=@from.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)">
+        @if (Model.HasStill)
+        {
+            <img src="/clips/@Model.ClipId/still" alt="" loading="lazy" width="2028" height="1520">
+        }
+        <time datetime="@Model.At.UtcDateTime.ToString("o")">@Wording.Utc(Model.At)</time>
+        @if (Model.Detail is not null)
+        {
+            <span class="detail">@Model.Detail</span>
+        }
+        <span class="length">@Wording.Length(Model.LengthSeconds)</span>
+    </a>
+</li>

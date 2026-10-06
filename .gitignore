@@ -23,8 +23,9 @@ __pycache__/
 # .NET
 bin/
 obj/
-# Ingest as published by `just deploy`
+# Ingest and web as published by `just deploy`
 deploy/ingest/
+deploy/web/
 
 # Frame grabs and previews used for calibration
 calibration/

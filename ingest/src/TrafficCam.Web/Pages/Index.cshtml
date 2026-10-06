@@ -1,0 +1,24 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "All types";
+}
+@if (Model.Columns.Count == 0)
+{
+    <p>No clips yet.</p>
+}
+<div class="columns">
+    @foreach (var column in Model.Columns)
+    {
+        <section>
+            <h2>@Wording.Title(column.Type)</h2>
+            <ol class="entries">
+                @foreach (var entry in column.Newest)
+                {
+                    <partial name="_Entry" model="entry" />
+                }
+            </ol>
+            <a class="more" href="/types/@column.Type">All @column.Total</a>
+        </section>
+    }
+</div>

@@ -1,0 +1,101 @@
+:root {
+    color-scheme: light dark;
+    --muted: color-mix(in srgb, currentColor 60%, transparent);
+    --line: color-mix(in srgb, currentColor 18%, transparent);
+    font: 15px/1.4 system-ui, sans-serif;
+}
+
+body {
+    margin: 0 auto;
+    max-width: 100rem;
+    padding: 0 1rem 2rem;
+}
+
+header {
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding: 0.75rem 0;
+}
+
+a {
+    color: inherit;
+}
+
+h1,
+h2 {
+    font-size: 1.1rem;
+    margin: 0.75rem 0;
+}
+
+/* One column per type, sharing the width; they wrap, down to a single column on a phone. */
+.columns {
+    align-items: start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+
+.columns section {
+    flex: 1 1 13rem;
+    max-width: 22rem;
+}
+
+.entries {
+    display: grid;
+    gap: 0.75rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.entries.wide {
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 22rem));
+}
+
+.entries a {
+    display: grid;
+    text-decoration: none;
+}
+
+.entries img {
+    aspect-ratio: 4 / 3;
+    background: var(--line);
+    border-radius: 4px;
+    height: auto;
+    object-fit: cover;
+    width: 100%;
+}
+
+.entries time {
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.detail,
+.length {
+    color: var(--muted);
+}
+
+.more {
+    display: inline-block;
+    margin-top: 0.75rem;
+}
+
+video {
+    background: black;
+    display: block;
+    max-height: 80vh;
+    width: 100%;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+th,
+td {
+    border-bottom: 1px solid var(--line);
+    padding: 0.4rem 1rem 0.4rem 0;
+    text-align: left;
+}

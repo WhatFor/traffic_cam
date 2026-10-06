@@ -1,0 +1,39 @@
+@page "/clips/{id:guid}"
+@model ClipModel
+@{
+    ViewData["Title"] = "Clip";
+    var clip = Model.Clip;
+    var invariant = System.Globalization.CultureInfo.InvariantCulture;
+}
+@if (clip.DeletedAt is { } deleted)
+{
+    <p>This clip was deleted on <time datetime="@deleted.UtcDateTime.ToString("o")">@Wording.Utc(deleted)</time>.</p>
+}
+else
+{
+    <video controls autoplay muted playsinline preload="metadata"
+           poster="@(clip.StillPath is null ? null : $"/clips/{clip.Id}/still")"
+           src="/clips/@clip.Id/video#t=@Model.From.ToString("0.#", invariant)"></video>
+}
+<h1><time datetime="@clip.StartedAt.UtcDateTime.ToString("o")">@Wording.Utc(clip.StartedAt)</time></h1>
+<p class="detail">@Wording.Length(clip.LengthSeconds), @((clip.Bytes / 1e6).ToString("0.#", invariant)) MB</p>
+<table>
+    <thead>
+        <tr><th>What</th><th>When</th><th>In the clip</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var trigger in Model.Triggers)
+        {
+            <tr>
+                <td><a href="/types/@trigger.Type">@Wording.Title(trigger.Type)</a></td>
+                <td><time datetime="@trigger.At.UtcDateTime.ToString("o")">@Wording.Utc(trigger.At)</time></td>
+                <td>
+                    <button type="button" data-seek="@Math.Max(0, trigger.OffsetSeconds).ToString("0.##", invariant)">
+                        @trigger.OffsetSeconds.ToString("0.0", invariant) s
+                    </button>
+                </td>
+                <td>@trigger.Detail</td>
+            </tr>
+        }
+    </tbody>
+</table>

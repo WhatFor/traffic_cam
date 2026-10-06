@@ -1,0 +1,57 @@
+using System.Globalization;
+using System.Text.Json;
+
+namespace TrafficCam.Web;
+
+/// <summary>How the records read on a page.</summary>
+public static class Wording
+{
+    public const string Manual = "manual";
+
+    /// <summary>A trigger type as a heading: red_light becomes "Red light".</summary>
+    public static string Title(string type)
+    {
+        var words = type.Replace('_', ' ');
+        return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
+    }
+
+    /// <summary>What is worth saying about a trigger: the reason given for a manual one, else what its event recorded.</summary>
+    public static string? Detail(string type, string? reason, string? attrs)
+    {
+        if (type == Manual || attrs is null)
+            return reason;
+        using var document = JsonDocument.Parse(attrs);
+        var root = document.RootElement;
+        string?[] parts =
+        [
+            root.TryGetProperty("movement", out var movement) && movement.ValueKind == JsonValueKind.String
+                ? movement.GetString()
+                : null,
+            Seconds(root, "time_into_red_s", "{0} s into red"),
+            Seconds(root, "time_into_amber_s", "{0} s into amber"),
+            Seconds(root, "stationary_s", "stood {0} s"),
+        ];
+        var said = string.Join(", ", parts.Where(part => part is not null));
+        return said.Length == 0 ? null : said;
+    }
+
+    public static string Length(double seconds)
+    {
+        var whole = (int)Math.Round(seconds);
+        string?[] parts =
+        [
+            whole >= 60 ? string.Create(CultureInfo.InvariantCulture, $"{whole / 60} min") : null,
+            whole % 60 != 0 || whole == 0 ? string.Create(CultureInfo.InvariantCulture, $"{whole % 60} s") : null,
+        ];
+        return string.Join(' ', parts.Where(part => part is not null));
+    }
+
+    /// <summary>What a time reads as until the page's script puts it in the reader's own time zone.</summary>
+    public static string Utc(DateTimeOffset at) =>
+        at.UtcDateTime.ToString("ddd d MMM HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
+
+    static string? Seconds(JsonElement attrs, string name, string format) =>
+        attrs.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
+            ? string.Format(CultureInfo.InvariantCulture, format, value.GetDouble().ToString("0.#", CultureInfo.InvariantCulture))
+            : null;
+}

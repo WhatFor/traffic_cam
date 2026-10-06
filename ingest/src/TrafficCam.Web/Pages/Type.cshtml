@@ -1,0 +1,20 @@
+@page "/types/{type}"
+@model TypeModel
+@{
+    ViewData["Title"] = Wording.Title(Model.Type);
+}
+<h1>@Wording.Title(Model.Type)</h1>
+@if (Model.Entries.Count == 0)
+{
+    <p>No clips.</p>
+}
+<ol class="entries wide">
+    @foreach (var entry in Model.Entries)
+    {
+        <partial name="_Entry" model="entry" />
+    }
+</ol>
+@if (Model.Older is { } older)
+{
+    <a class="more" href="/types/@Model.Type?before=@Uri.EscapeDataString(older.UtcDateTime.ToString("o"))">Older</a>
+}
