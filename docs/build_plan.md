@@ -710,9 +710,8 @@ Acceptance: a car driven through at a steady, GPS-logged speed reads within ±10
 
 - [ ] Incident-candidate detector and near-miss detector.
 - [ ] Stage-sequence phase estimator, evaluated against a held-out visible head.
-- [ ] Training-data capture; custom model (vans, bicycles) compiled with the Hailo Dataflow Compiler.
 
-Acceptance: incident false candidates stay within a tolerable daily number; estimator accuracy is reported; the custom model beats the stock model on the replay set.
+Acceptance: incident false candidates stay within a tolerable daily number; estimator accuracy is reported.
 
 ### Phase 10 — Public stats
 
