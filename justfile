@@ -111,6 +111,12 @@ clip host reason:
     export MQTT_PASSWORD
     uv run python -m trafficcam.clipcmd --config ../config/site.yaml --host {{host}} {{quote(reason)}}
 
+# Fit the ground map from calibration/ground_points.yaml: prints the block for site.yaml, writes check images
+[working-directory('vision')]
+calibrate-speed:
+    uv run python -m trafficcam.calibrate fit --points ../calibration/ground_points.yaml \
+        --frame ../calibration/frame.png --out ../calibration/ground
+
 # Draw the site config's geometry over calibration/frame.png, into calibration/preview.png
 [working-directory('vision')]
 preview:

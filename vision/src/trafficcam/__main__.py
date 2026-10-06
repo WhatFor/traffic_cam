@@ -12,6 +12,7 @@ from trafficcam.detectors import Detector
 from trafficcam.detectors.banned_turn import BannedTurns
 from trafficcam.detectors.box_junction import BoxJunctionStops
 from trafficcam.detectors.red_light import RedLight
+from trafficcam.detectors.speeding import Speeding
 from trafficcam.geometry import SceneGeometry
 from trafficcam.health.watchdog import Watchdog, systemd_notify
 from trafficcam.inference import InferenceBackend, NullBackend
@@ -21,6 +22,7 @@ from trafficcam.pipeline import Pipeline, run
 from trafficcam.signals import Signals
 from trafficcam.signals.lamps import LampRoiObserver
 from trafficcam.sources import FrameSource
+from trafficcam.speed import SpeedMeter
 from trafficcam.timesync import wait_for_clock_sync
 from trafficcam.tracking.bytetrack import ByteTracker
 from trafficcam.tracklog.replay import TrackLogReplay
@@ -93,6 +95,8 @@ def open_detectors(config: SiteConfig, config_hash: str, signals: Signals) -> li
         detectors.append(BannedTurns(config, config_hash, signals))
     if config.detectors.red_light is not None:
         detectors.append(RedLight(config, config_hash, signals))
+    if config.detectors.speed is not None:
+        detectors.append(Speeding(config, config_hash))
     return detectors
 
 
@@ -131,11 +135,12 @@ def main() -> None:
         else:
             backend = stack.enter_context(open_backend(config))
         signals = Signals(config, config_hash)
+        speeds = SpeedMeter(config.detectors.speed) if config.detectors.speed else None
         pipeline = Pipeline(
             backend,
             ByteTracker(config.tracking, config.camera.fps),
             SceneGeometry(config),
-            PassageBuilder(config, config_hash, signals),
+            PassageBuilder(config, config_hash, signals, speeds),
             open_detectors(config, config_hash, signals),
             signals,
             # A track log carries the signal states that were read when it was recorded.

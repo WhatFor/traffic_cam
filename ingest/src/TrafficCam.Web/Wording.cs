@@ -27,9 +27,10 @@ public static class Wording
             root.TryGetProperty("movement", out var movement) && movement.ValueKind == JsonValueKind.String
                 ? movement.GetString()
                 : null,
-            Seconds(root, "time_into_red_s", "{0} s into red"),
-            Seconds(root, "time_into_amber_s", "{0} s into amber"),
-            Seconds(root, "stationary_s", "stood {0} s"),
+            Measure(root, "speed_mph", "{0} mph"),
+            Measure(root, "time_into_red_s", "{0} s into red"),
+            Measure(root, "time_into_amber_s", "{0} s into amber"),
+            Measure(root, "stationary_s", "stood {0} s"),
         ];
         var said = string.Join(", ", parts.Where(part => part is not null));
         return said.Length == 0 ? null : said;
@@ -50,7 +51,7 @@ public static class Wording
     public static string Utc(DateTimeOffset at) =>
         at.UtcDateTime.ToString("ddd d MMM HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
 
-    static string? Seconds(JsonElement attrs, string name, string format) =>
+    static string? Measure(JsonElement attrs, string name, string format) =>
         attrs.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
             ? string.Format(CultureInfo.InvariantCulture, format, value.GetDouble().ToString("0.#", CultureInfo.InvariantCulture))
             : null;

@@ -12,6 +12,7 @@ from trafficcam.contracts import Passage
 from trafficcam.geometry import Crossing, Observation
 from trafficcam.inference import CLASS_NAMES
 from trafficcam.signals import Signals
+from trafficcam.speed import SpeedMeter, SpeedResult
 
 # A heading is taken from where a track was first seen in a zone to where it is once it
 # has been followed for this long and has moved this far; less than that is mostly jitter.
@@ -33,15 +34,30 @@ class _OpenPassage:
     first_in: dict[str, tuple[datetime, float, float] | None] = field(default_factory=dict)
 
 
+def _speed_flags(speed: SpeedResult) -> dict[str, object]:
+    """What is known of a passage's speed beyond the one number the contract has a field for."""
+    flags: dict[str, object] = {}
+    if speed.sustained_at is not None:
+        flags["sustained_at"] = speed.sustained_at.isoformat()
+    if speed.stretch_kmh:
+        flags["stretch_kmh"] = speed.stretch_kmh
+    return flags
+
+
 class PassageBuilder:
     """Follows every track and returns its passage once the track has gone for good."""
 
     def __init__(
-        self, config: SiteConfig, config_hash: str, signals: Signals | None = None
+        self,
+        config: SiteConfig,
+        config_hash: str,
+        signals: Signals | None = None,
+        speeds: SpeedMeter | None = None,
     ) -> None:
         self._camera = config.camera.id
         self._config_hash = config_hash
         self._signals = signals
+        self._speeds = speeds
         self._zones = config.zones
         self._line_lag = {
             name: timedelta(seconds=line.lag_s) for name, line in config.lines.items()
@@ -52,6 +68,8 @@ class PassageBuilder:
 
     def update(self, observation: Observation, timestamp: datetime) -> list[Passage]:
         tracks = observation.tracks
+        if self._speeds is not None:
+            self._speeds.update(observation, timestamp)
         ids = tracks.tracker_id if tracks.tracker_id is not None else []
         class_ids = tracks.class_id if tracks.class_id is not None else []
         for index, (track_id, class_id) in enumerate(zip(ids, class_ids, strict=True)):
@@ -104,16 +122,19 @@ class PassageBuilder:
         self, timestamp: datetime, finished: Callable[[_OpenPassage], bool]
     ) -> list[Passage]:
         closing = {track_id: state for track_id, state in self._open.items() if finished(state)}
-        for track_id in closing:
+        passages = []
+        for track_id, state in closing.items():
             del self._open[track_id]
-        # A track that never touched a zone is not a trip through the junction.
-        return [
-            self._passage(track_id, state, timestamp)
-            for track_id, state in closing.items()
-            if state.seen_in_a_zone
-        ]
+            # Taken for every track, so the meter forgets the ones that make no passage.
+            speed = self._speeds.take(track_id) if self._speeds is not None else None
+            # A track that never touched a zone is not a trip through the junction.
+            if state.seen_in_a_zone:
+                passages.append(self._passage(track_id, state, timestamp, speed))
+        return passages
 
-    def _passage(self, track_id: int, state: _OpenPassage, closed_at: datetime) -> Passage:
+    def _passage(
+        self, track_id: int, state: _OpenPassage, closed_at: datetime, speed: SpeedResult | None
+    ) -> Passage:
         (class_id, _), *_ = state.class_counts.most_common(1)
         entry, exit_ = state.entry_zone, state.exit_zone
         # Nothing leaves by the arm it came in on. Where an arm's approach and exit zones
@@ -149,7 +170,7 @@ class PassageBuilder:
                 "stopline_crossed_at": state.crossing.timestamp if state.crossing else None,
                 "signal_state_at_crossing": signal.state if signal else None,
                 "signal_source": signal.source if signal else None,
-                "speed_kmh": None,
-                "flags": {},
+                "speed_kmh": speed.sustained_kmh if speed else None,
+                "flags": {"speed": _speed_flags(speed)} if speed and _speed_flags(speed) else {},
             }
         )

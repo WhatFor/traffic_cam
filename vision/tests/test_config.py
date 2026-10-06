@@ -59,7 +59,17 @@ FULL: dict[str, Any] = {
     "detectors": {
         "box_junction": {"min_stationary_s": 3.0, "exempt_movements": ["left_turn_watch"]},
         "red_light": {"grace_s": 0.5},
-        "speed": {"homography": [[1, 0, 0], [0, 1, 0], [0, 0, 1]], "limit_mph": 30},
+        "speed": {
+            # The image is the ground at 10 pixels to the metre, with north up.
+            "ground_points": [
+                {"pixel": [0, 0], "ground": [0, 100]},
+                {"pixel": [2000, 0], "ground": [200, 100]},
+                {"pixel": [2000, 1500], "ground": [200, -50]},
+                {"pixel": [0, 1500], "ground": [0, -50]},
+            ],
+            "limit_mph": 30,
+            "flag_above_mph": 35,
+        },
         "incident": {"decel_mps2": 6.0, "notify_min_confidence": 0.7},
     },
     "clips": {
@@ -68,7 +78,11 @@ FULL: dict[str, Any] = {
         "post_s": 55,
         "retention_days": 30,
         "max_gb": 200,
-        "events": {"red_light": {"pre_s": 5, "post_s": 15}, "incident_candidate": {}},
+        "events": {
+            "red_light": {"pre_s": 5, "post_s": 15},
+            "incident_candidate": {},
+            "speeding": {"min": {"speed_mph": 45}},
+        },
     },
 }
 
@@ -141,6 +155,31 @@ def _set(path: str, value: Any) -> Callable[[dict[str, Any]], None]:
         (_set("clips.events.red_light.pre_s", 120), "pre_s must be less than buffer_s"),
         (_set("clips.max_s", 30), "more than max_s"),
         (_set("clips.events.red_light.length", 20), "length"),
+        (_set("detectors.speed.flag_above_mph", 25), "below limit_mph"),
+        (
+            _set("detectors.speed.ground_points", [{"pixel": [0, 0], "ground": [0, 0]}] * 3),
+            "ground_points",
+        ),
+        (
+            _set(
+                "detectors.speed.ground_points",
+                [{"pixel": [x, x], "ground": [x, x]} for x in (0, 100, 200, 300)],
+            ),
+            "nearly in a line",
+        ),
+        (
+            _set(
+                "detectors.speed.ground_points",
+                [
+                    {"pixel": [0, 0], "ground": [0, 100]},
+                    {"pixel": [2000, 0], "ground": [200, 100]},
+                    {"pixel": [2000, 1500], "ground": [200, -50]},
+                    {"pixel": [0, 1500], "ground": [0, -50]},
+                    {"pixel": [1000, 750], "ground": [100, 30]},
+                ],
+            ),
+            "point 5 is",
+        ),
     ],
 )
 def test_mistakes_are_rejected(
@@ -184,3 +223,13 @@ def test_a_clip_is_as_long_as_its_event_type_says() -> None:
     assert clips.lengths("red_light") == (5, 15)
     assert clips.lengths("incident_candidate") == (5, 55)
     assert clips.lengths() == (5, 55)
+
+
+def test_a_clip_can_wait_for_an_event_to_be_bad_enough() -> None:
+    clips = SiteConfig.model_validate(FULL).clips
+
+    assert clips.wants("red_light", {})
+    assert not clips.wants("amber_crossing", {})
+    assert clips.wants("speeding", {"speed_mph": 45.0})
+    assert not clips.wants("speeding", {"speed_mph": 44.9})
+    assert not clips.wants("speeding", {})

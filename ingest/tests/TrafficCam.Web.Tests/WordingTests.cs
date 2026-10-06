@@ -16,6 +16,7 @@ public class WordingTests
     [InlineData("amber_crossing", """{"movement": "west->east", "time_into_amber_s": 0.17}""", "west->east, 0.2 s into amber")]
     [InlineData("box_junction_stop", """{"movement": "north->west", "stationary_s": 6.2, "x": 1100}""", "north->west, stood 6.2 s")]
     [InlineData("banned_turn", """{"movement": "south->west", "turn": "left_from_south", "signals": {}}""", "south->west")]
+    [InlineData("speeding", """{"movement": "west->east", "speed_mph": 41.0, "speed_kmh": 66.0, "limit_mph": 30}""", "west->east, 41 mph")]
     [InlineData("something_new", "{}", null)]
     public void An_events_detail_is_its_movement_and_its_measure(string type, string attrs, string? detail) =>
         Assert.Equal(detail, Wording.Detail(type, reason: null, attrs));

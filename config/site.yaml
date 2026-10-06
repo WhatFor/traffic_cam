@@ -117,6 +117,26 @@ detectors:
     movements: [left_from_south]
     signal_heads: [south, crossing_west_exit]   # what these showed is noted on the event
   red_light: { grace_s: 0.5 }
+  speed:
+    # Points found both in the frame and on a map, fitted with `just calibrate-speed`.
+    # Speeds are measured only among them. Metres are east and north of the first point.
+    ground_points:
+      - { pixel: [958, 776], ground: [0.00, 0.00] }       # box junction, north-west corner
+      - { pixel: [1201, 574], ground: [24.35, 7.46] }     # box junction, north-east corner
+      - { pixel: [1452, 861], ground: [5.56, -16.47] }    # box junction, south-west corner
+      - { pixel: [735, 957], ground: [-13.98, -4.22] }    # west approach cycle box, rear corner
+      - { pixel: [792, 909], ground: [-10.59, -3.20] }    # west approach cycle box, front corner
+      - { pixel: [740, 671], ground: [2.00, 13.90] }      # north stop line, island end
+      - { pixel: [809, 612], ground: [9.44, 17.81] }      # north stop line, kerb end
+      - { pixel: [1354, 576], ground: [27.60, 1.20] }     # nose of the island east of the box
+      - { pixel: [1009, 704], ground: [6.23, 3.02] }      # nose of the island north of the box
+    sustained_s: 1.0              # a passage's speed is the fastest it held for this long
+    stretches:                    # average speed, entry to exit, for the dashboard
+      box:                        # across the box junction, as far as the camera sees it
+        polygon: [[960, 776], [1204, 570], [1519, 618], [1508, 714], [1478, 734], [1469, 830], [1453, 858]]
+        min_m: 12
+    limit_mph: 30
+    flag_above_mph: 35            # the limit, plus 10% and 2 mph
   incident: { decel_mps2: 6.0, notify_min_confidence: 0.7 }
 
 clips:
@@ -131,3 +151,4 @@ clips:
     red_light: { pre_s: 5, post_s: 15 }
     banned_turn: { pre_s: 5, post_s: 15 }
     box_junction_stop: { pre_s: 5, post_s: 15 }
+    speeding: { pre_s: 5, post_s: 15, min: { speed_mph: 45 } }   # an event from 35, a clip from 45

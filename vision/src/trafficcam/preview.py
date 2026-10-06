@@ -16,6 +16,7 @@ GRID_COLOUR = (255, 255, 255, 70)
 CROP_COLOUR = (0, 220, 255)
 LINE_COLOUR = (0, 255, 0)
 LAMP_COLOUR = (255, 140, 0)
+SPEED_COLOUR = (255, 255, 0)
 ZONE_COLOURS = [(255, 0, 255), (255, 80, 80), (80, 160, 255), (255, 200, 0), (160, 100, 255)]
 
 Colour = tuple[int, int, int]
@@ -74,6 +75,24 @@ def render(frame: Image.Image, config: SiteConfig) -> Image.Image:
         bottom = max(y + h for _, y, _, h in rects) + 6
         draw.rectangle([left, top, right, bottom], outline=LAMP_COLOUR, width=2)
         label(right + 6, top - 4, name, LAMP_COLOUR)
+
+    speed = config.detectors.speed
+    if speed is not None:
+        # Speeds are measured inside this outline, which joins the outermost ground points.
+        hull = [(float(x), float(y)) for x, y in speed.ground_map().hull]
+        draw.line([*hull, hull[0]], fill=SPEED_COLOUR, width=3)
+        label(hull[0][0] + 8, hull[0][1] + 8, "speed is measured inside", SPEED_COLOUR)
+        for point in speed.ground_points:
+            x, y = point.pixel
+            draw.ellipse([x - 5, y - 5, x + 5, y + 5], outline=SPEED_COLOUR, width=2)
+        for name, stretch in speed.stretches.items():
+            draw.polygon(stretch.polygon, outline=SPEED_COLOUR, width=2)
+            label(
+                stretch.polygon[0][0] + 8,
+                stretch.polygon[0][1] - 30,
+                f"stretch {name}",
+                SPEED_COLOUR,
+            )
 
     return Image.alpha_composite(frame.convert("RGBA"), overlay).convert("RGB")
 

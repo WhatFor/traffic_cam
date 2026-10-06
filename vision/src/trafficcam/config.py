@@ -1,7 +1,7 @@
 """Site config: the model for config/site.yaml, its loader and its content hash."""
 
 import hashlib
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
@@ -19,12 +19,11 @@ from pydantic import (
 )
 
 from trafficcam.contracts import RoadUserClass
+from trafficcam.groundmap import GroundMap
 
 # Pixels in the camera.size frame.
 Point = tuple[NonNegativeInt, NonNegativeInt]  # x, y
 Rect = tuple[NonNegativeInt, NonNegativeInt, PositiveInt, PositiveInt]  # x, y, w, h
-
-HomographyRow = tuple[float, float, float]
 
 
 class ConfigError(Exception):
@@ -137,9 +136,46 @@ class RedLight(_Section):
     amber_events: bool = True
 
 
+class GroundPoint(_Section):
+    """A point on the road surface that has been found both in the image and on a map."""
+
+    pixel: tuple[float, float]
+    # Metres east and north of whichever point was taken as the origin.
+    ground: tuple[float, float]
+
+
+class Stretch(_Section):
+    """A length of road over which an average speed is taken."""
+
+    polygon: list[Point] = Field(min_length=3)
+    # A track must cover at least this much of it, entry to exit, for its average to count.
+    min_m: PositiveFloat
+
+
 class Speed(_Section):
-    homography: tuple[HomographyRow, HomographyRow, HomographyRow]
+    # Speeds are measured among these points and nowhere else.
+    ground_points: list[GroundPoint] = Field(min_length=4)
+    # A passage's speed is the fastest it held for this long.
+    sustained_s: PositiveFloat = 1.0
+    stretches: dict[str, Stretch] = {}
     limit_mph: PositiveFloat
+    # A passage faster than this raises an event. Above the limit by more than the
+    # measurement can be wrong by.
+    flag_above_mph: PositiveFloat
+
+    def ground_map(self) -> GroundMap:
+        return GroundMap(
+            [point.pixel for point in self.ground_points],
+            [point.ground for point in self.ground_points],
+        )
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if self.flag_above_mph < self.limit_mph:
+            raise ValueError("flag_above_mph is below limit_mph")
+        # Raises if the points do not make a mapping that can be trusted.
+        self.ground_map()
+        return self
 
 
 class Incident(_Section):
@@ -158,6 +194,8 @@ class Detectors(_Section):
 class ClipLength(_Section):
     pre_s: NonNegativeFloat | None = None
     post_s: PositiveFloat | None = None
+    # Only an event with every one of these attributes at or above the value triggers a clip.
+    min: dict[str, float] = {}
 
 
 class Clips(_Section):
@@ -174,6 +212,17 @@ class Clips(_Section):
     max_gb: PositiveFloat
     # The event types that trigger a clip, each with its own lengths if it gives them.
     events: dict[str, ClipLength] = {}
+
+    def wants(self, event_type: str, attrs: Mapping[str, object]) -> bool:
+        """Whether an event of this type, with these attributes, is to have a clip."""
+        rule = self.events.get(event_type)
+        if rule is None:
+            return False
+        values = (attrs.get(name) for name in rule.min)
+        return all(
+            isinstance(value, int | float) and value >= least
+            for value, least in zip(values, rule.min.values(), strict=True)
+        )
 
     def lengths(self, event_type: str | None = None) -> tuple[float, float]:
         """Seconds kept before and after a trigger of this event type, or a manual one."""

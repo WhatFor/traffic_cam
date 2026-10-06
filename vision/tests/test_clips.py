@@ -78,7 +78,10 @@ def settings(directory: Path) -> Clips:
             "max_s": 12,
             "retention_days": 30,
             "max_gb": 1,
-            "events": {"red_light": {"pre_s": 5, "post_s": 3}},
+            "events": {
+                "red_light": {"pre_s": 5, "post_s": 3},
+                "speeding": {"pre_s": 2, "post_s": 2, "min": {"speed_mph": 45}},
+            },
         }
     )
 
@@ -273,6 +276,19 @@ def test_an_event_of_another_type_gets_no_clip(encoded: Encoded, tmp_path: Path)
 
     assert recorder.drain() == []
     assert NullRecorder().for_event(event) is event
+
+
+def test_an_event_below_its_types_threshold_gets_no_clip(encoded: Encoded, tmp_path: Path) -> None:
+    recorder = a_recorder(a_ring(encoded), tmp_path)
+    speeding = an_event("speeding").model_copy(update={"ts": at(10)})
+    over = speeding.model_copy(update={"attrs": {"speed_mph": 38.0}})
+    far_over = speeding.model_copy(update={"id": uuid.uuid4(), "attrs": {"speed_mph": 47.5}})
+
+    assert recorder.for_event(over) is over
+    assert recorder.for_event(far_over).clip_id is not None
+    recorder.step()
+
+    assert only_clip(recorder).triggers[0].type == "speeding"
 
 
 def test_a_clip_is_dropped_and_counted_without_its_directory(

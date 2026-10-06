@@ -6,6 +6,8 @@
 *.rrd
 clips/
 recordings/
+# ...but not the source package of that name, which the rule above would hide.
+!vision/src/trafficcam/clips/
 
 # Secrets
 .env

@@ -311,7 +311,7 @@ signal_heads:
 detectors:
   box_junction: { min_stationary_s: 3.0, exempt_movements: [right turns] }
   red_light: { grace_s: 0.5 }
-  speed: { homography: [[...]], limit_mph: 30 }
+  speed: { ground_points: [{ pixel: [x, y], ground: [east_m, north_m] }, ...], limit_mph: 30, flag_above_mph: 35 }
   incident: { decel_mps2: 6.0, notify_min_confidence: 0.7 }
 clips:
   dir: /mnt/data/clips
@@ -419,7 +419,7 @@ Every detector is a pure function of the frame context and its own state, with p
 | Box junction stop | Ground point inside the box polygon, speed near zero for ≥ `min_stationary_s` | 3 s to start; speed threshold | Optional |
 | Red light | Inbound stop-line crossing while the controlling head is *observed* red for longer than `grace_s` | 0.5 s grace | Optional |
 | Amber crossing | Inbound stop-line crossing on amber | — | No |
-| Speeding | Median ground speed over a segment exceeds the limit plus a tolerance | Homography; limit; tolerance | No |
+| Speeding | Fastest speed held for a second exceeds the limit plus a tolerance | Ground points; limit; tolerance | From 45 mph |
 | Incident candidate | Weighted score of crash signals above a threshold | Deceleration, overlap, stationary time | Always |
 | Near-miss | Post-encroachment time between conflicting tracks below a threshold | e.g. 1.5 s | Optional |
 
@@ -428,9 +428,9 @@ Notes per detector:
 - **Box junction**: decide at passage end, so the exit zone is known. Vehicles that turn right are exempt: they may legally wait in the box for oncoming traffic. Record how long the vehicle was stationary and when it started.
 - **Red light**: ignore vehicles already past the line when red began. If the signal state is `unknown` or only inferred, record the crossing on the passage but raise no event. Store time-into-red on the event.
 - **Speeding**:
-  - Speed comes from a homography: a mapping from image pixels to metres on the road surface, calibrated from at least 4 measured ground points (lane widths, the box junction's dimensions, from satellite imagery or a tape measure).
+  - Speed comes from a homography: a mapping from image pixels to metres on the road surface, fitted at start-up from at least 4 measured ground points kept in `site.yaml` (ADR 0019). The points were read off satellite imagery; their coordinates stay out of the repo.
   - Smooth displacement over a window of at least 0.5–1 s using sensor timestamps.
-  - Expect ±5–10% accuracy. Report distributions; never single out individual vehicles.
+  - Expect ±5–10% accuracy. Distributions are the main output. An event from 35 mph, and a clip from 45 mph, mark a passage for a look; neither is evidence of an offence.
 - **Incident candidates**:
   - Signals: abrupt deceleration; two vehicle boxes overlapping then both stopping; a vehicle stationary outside any queue area; a person in a carriageway zone.
   - Trigger a clip every time. Notify only above `notify_min_confidence`, with a cooldown.
@@ -695,15 +695,14 @@ Acceptance:
 
 ### Phase 7 — Notifications
 
-- [ ] Notifier: rules config, SMTP email with still frame and clip link, cooldown, optional ntfy.
 - [x] Clip pages and files, from the `web` service on the local network (ADR 0018).
 
 Acceptance: a test incident produces an email within 90 s, with the still frame and a working clip link. A second test within 10 minutes is suppressed by the cooldown.
 
 ### Phase 8 — Speed
 
-- [ ] Homography calibration tool using at least 4 measured ground points, saved in `site.yaml`.
-- [ ] Speed on passages, speeding detector and speed-distribution dashboard.
+- [x] Homography calibration tool using at least 4 measured ground points, saved in `site.yaml`.
+- [x] Speed on passages, speeding detector and speed-distribution dashboard.
 
 Acceptance: a car driven through at a steady, GPS-logged speed reads within ±10%.
 
@@ -790,7 +789,7 @@ None of these block Phase 1; each blocks the phase noted.
 - [ ] Has the Pi joined the tailnet, and under what name? (Phase 2 deploy)
 - [ ] Which exit is the left turn to watch? (Phase 4)
 - [ ] Which signal heads control which stop lines and movements? Record cycles to find out. (Phase 5)
-- [ ] The junction's speed limit; speeds are stored in km/h, and the limit and dashboards use mph. (Phase 8)
+- [x] The junction's speed limit; speeds are stored in km/h, and the limit and dashboards use mph. (Phase 8) 30 mph; flagged above 35.
 - [x] Clip retention: are 30 days and a 200 GB cap right? (Phase 6) Yes.
 - [ ] Track-log retention: are 7 days enough? (Phase 2)
 - [ ] Is the GitHub repo private or public? It affects repo hygiene. (Phase 1)
