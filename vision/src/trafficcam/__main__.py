@@ -23,6 +23,7 @@ from trafficcam.outputs import open_outputs
 from trafficcam.passages import PassageBuilder
 from trafficcam.pipeline import Pipeline, run
 from trafficcam.signals import Signals
+from trafficcam.signals.estimator import StageSequenceEstimator
 from trafficcam.signals.lamps import LampRoiObserver
 from trafficcam.sources import FrameSource
 from trafficcam.speed import SpeedMeter
@@ -145,7 +146,10 @@ def main() -> None:
             backend = NullBackend()
         else:
             backend = stack.enter_context(open_backend(config))
-        signals = Signals(config, config_hash)
+        estimator = StageSequenceEstimator(config) if config.signal_plan else None
+        if estimator is not None and outputs.metrics is not None:
+            outputs.metrics.watch_signal_plan(lambda: estimator.violations)
+        signals = Signals(config, config_hash, estimator)
         speeds = SpeedMeter(config.detectors.speed) if config.detectors.speed else None
         pipeline = Pipeline(
             backend,

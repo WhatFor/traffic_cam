@@ -109,6 +109,37 @@ signal_heads:
     lamps: { red: [1092, 887, 3, 3], green: [1091, 892, 3, 3] }
     controls: []
 
+# What the signals do, for working out the heads that cannot be read (ADR 0022). A group is
+# the heads that change together; `north` is the north arm's head, which is not in view.
+# A link is the seconds from one group's green starting (.on) or ending (.off) to another's,
+# least and most. Most are fixed by the controller; three vary with the traffic.
+signal_plan:
+  groups:
+    west_ahead: { heads: [west_ahead_left, west_ahead_right, west_ahead_far] }
+    west_slip: { heads: [west_north_near, west_north_far] }
+    south: { heads: [south] }
+    crossing: { heads: [crossing_west_exit] }
+    north: { controls: [stopline_north] }
+  # Printed by `just learn-signal-plan`, from 12 hours of 2026-10-06 and 07 (about 510 cycles).
+  links:
+    - { from: crossing.off, to: west_ahead.on, s: [22.6, 26.8] }
+    - { from: crossing.on, to: crossing.off, s: [4.6, 6.3] }
+    - { from: south.off, to: crossing.off, s: [0.0, 0.4] }
+    - { from: south.on, to: south.off, s: [9.6, 11.1] }
+    - { from: west_ahead.off, to: west_slip.off, s: [16.7, 32.5] }   # varies
+    - { from: west_ahead.on, to: west_ahead.off, s: [11.7, 40.1] }   # varies
+    - { from: west_ahead.on, to: west_slip.on, s: [3.6, 4.4] }
+    - { from: west_slip.off, to: crossing.on, s: [8.8, 9.5] }
+    - { from: west_slip.off, to: south.on, s: [3.6, 4.3] }
+    - { from: west_slip.off, to: west_ahead.on, s: [36.6, 40.9] }
+    - { from: west_slip.on, to: west_slip.off, s: [27.0, 62.1] }     # varies
+    # The north arm, from when its traffic crosses its line (`just signal-flow`): the first
+    # vehicle 8.7 s after the ahead green ends at the soonest, the last within a second of the
+    # slip lane's green ending. Set by hand; its head has never been seen.
+    - { from: west_ahead.off, to: north.on, s: [6.0, 8.0] }
+    - { from: north.off, to: south.on, s: [3.0, 5.0] }
+    - { from: north.on, to: north.off, s: [9.0, 24.0] }
+
 # The road in metres: points found both in the frame and on a map, fitted with
 # `just calibrate-speed`. Distances are measured only among them. Metres are east and north
 # of the first point.

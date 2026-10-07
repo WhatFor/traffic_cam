@@ -44,6 +44,7 @@ class Outputs:
     observers: list[FrameObserver]
     rerun: "RerunSink | None"
     recorder: ClipRecorder | None
+    metrics: Metrics | None
 
 
 def open_outputs(
@@ -124,4 +125,4 @@ def open_outputs(
             send_clips(recorder, sinks)
 
         stack.callback(finish_clips)
-    return Outputs(sinks, observers, rerun, recorder)
+    return Outputs(sinks, observers, rerun, recorder, metrics)

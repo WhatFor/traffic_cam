@@ -260,6 +260,28 @@ class Clips(_Section):
         return self
 
 
+class SignalGroup(_Section):
+    """Heads that always change together. One with no heads is a head the camera cannot see."""
+
+    heads: list[str] = []
+    # What an unseen head controls. A group with heads controls what its heads do.
+    controls: list[str] = []
+
+
+class SignalLink(_Section):
+    """How long after one group's green starts (`.on`) or ends (`.off`) another's does."""
+
+    from_: str = Field(alias="from")
+    to: str
+    # Least and most seconds. A gap the controller fixes is a fraction of a second wide.
+    s: tuple[NonNegativeFloat, NonNegativeFloat]
+
+
+class SignalPlan(_Section):
+    groups: dict[str, SignalGroup]
+    links: list[SignalLink] = []
+
+
 class SiteConfig(_Section):
     camera: Camera
     inference: Inference
@@ -269,6 +291,9 @@ class SiteConfig(_Section):
     lines: dict[str, Line]
     movements: dict[str, Movement]
     signal_heads: dict[str, SignalHead]
+    # What the signals do in what order, for working out the heads that cannot be read.
+    # Printed by `just learn-signal-plan`.
+    signal_plan: SignalPlan | None = None
     # The road in metres, for the detectors that need distances. Empty where it has not
     # been measured.
     ground_points: list[GroundPoint] = []
@@ -324,6 +349,28 @@ class SiteConfig(_Section):
     def heads_controlling(self, target: str) -> list[str]:
         return [name for name, head in self.signal_heads.items() if target in head.controls]
 
+    def _signal_plan_errors(self) -> Iterable[str]:
+        if self.signal_plan is None:
+            return
+        grouped: set[str] = set()
+        for name, group in self.signal_plan.groups.items():
+            for head in group.heads:
+                if head not in self.signal_heads:
+                    yield f"signal_plan.groups.{name} names unknown head '{head}'"
+                if head in grouped:
+                    yield f"signal_plan.groups.{name}: head '{head}' is in another group too"
+                grouped.add(head)
+            for target in group.controls:
+                if target not in self.lines and target not in self.movements:
+                    yield f"signal_plan.groups.{name}.controls names unknown '{target}'"
+        for index, link in enumerate(self.signal_plan.links):
+            for end in (link.from_, link.to):
+                change = change_of(end)
+                if change is None or change[0] not in self.signal_plan.groups:
+                    yield f"signal_plan.links[{index}]: '{end}' is not a group's .on or .off"
+            if link.s[0] > link.s[1]:
+                yield f"signal_plan.links[{index}].s: the least is more than the most"
+
     def _reference_errors(self) -> Iterable[str]:
         if self.junction not in self.zones:
             yield f"junction names unknown zone '{self.junction}'"
@@ -335,6 +382,7 @@ class SiteConfig(_Section):
             for target in head.controls:
                 if target not in self.lines and target not in self.movements:
                     yield f"signal_heads.{name}.controls names unknown line or movement '{target}'"
+        yield from self._signal_plan_errors()
         named = {}
         if self.detectors.box_junction is not None:
             named["box_junction.exempt_movements"] = self.detectors.box_junction.exempt_movements
@@ -357,6 +405,12 @@ class SiteConfig(_Section):
                 yield f"detectors.{name} needs ground_points"
         if self.detectors.incident is not None and self.detectors.near_miss is None:
             yield "detectors.incident needs detectors.near_miss, whose conflicts it starts from"
+
+
+def change_of(name: str) -> tuple[str, str] | None:
+    """`west_ahead.on` as its group and which end of the green it is; None if it is neither."""
+    group, _, edge = name.rpartition(".")
+    return (group, edge) if group and edge in ("on", "off") else None
 
 
 def load_site_config(path: Path) -> tuple[SiteConfig, str]:

@@ -36,5 +36,5 @@ The event's time is when the tracked point crossed. Its attributes hold the line
 - A vehicle that crosses on red and whose track ends before the box is missed.
 - A vehicle that waits past the line and sets off early, while the signal is still red, is flagged. That is a red-light offence, but its "time into red" describes when it first crossed the line, not when it set off.
 - `lag_s` is one number for a line. It is right for a vehicle of ordinary length at ordinary speed, and too short for a long or slow one, which is then read slightly late. 0.7 s is an estimate that has not been measured against video.
-- There is no red-light detection for the north arm (no head) or the south arm (no stop line in view, and an inferred red).
+- There is no red-light detection for the north arm (no head) or the south arm (no stop line in view, and an inferred red). Since 0022 a north-arm passage records the state inferred for its crossing, and so does a west-line passage whose heads could not be read; neither raises an event.
 - An amber crossing is not an offence when the vehicle could not safely stop. These events are counts of behaviour, not of offences.

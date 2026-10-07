@@ -117,6 +117,49 @@ calibrate-speed:
     uv run python -m trafficcam.calibrate fit --points ../calibration/ground_points.yaml \
         --frame ../calibration/frame.png --out ../calibration/ground
 
+# Save the signal changes and stop-line crossings ingest has stored since a time, into calibration/signals/
+[arg("target", long="target", help="SSH destination of the Pi, as user@host")]
+[arg("since", long="since", help="Earliest time wanted, as '2026-10-06 18:30+01'")]
+signal-history target since:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p calibration/signals
+    ask() {
+        printf "%s >= '%s' ORDER BY 2\n" "$1" {{quote(since)}} | ssh {{target}} \
+            'cd trafficcam/deploy && docker compose exec -T timescaledb psql -U trafficcam -d trafficcam -At -F,'
+    }
+    ask "SELECT head_id, extract(epoch FROM ts), to_state FROM signal_changes WHERE ts" \
+        > calibration/signals/changes.csv
+    ask "SELECT stopline, extract(epoch FROM stopline_crossed_at) FROM passages WHERE stopline_crossed_at" \
+        > calibration/signals/crossings.csv
+    wc -l calibration/signals/changes.csv calibration/signals/crossings.csv
+
+# Work out the links of signal_plan from calibration/signals/: prints the block for site.yaml
+[arg("from", long="from", help="Use what follows this time, as 2026-10-06T18:30+01:00")]
+[arg("until", long="until", help="And what precedes this one")]
+[working-directory('vision')]
+learn-signal-plan from="1970-01-01T00:00+00:00" until="2100-01-01T00:00+00:00":
+    uv run python -m trafficcam.signals.study learn --config ../config/site.yaml \
+        --changes ../calibration/signals/changes.csv --from {{from}} --until {{until}}
+
+# For a signal head not in view: when its line's traffic starts and stops, against the changes that are seen
+[arg("from", long="from", help="Use what follows this time")]
+[arg("until", long="until", help="And what precedes this one")]
+[working-directory('vision')]
+signal-flow from="1970-01-01T00:00+00:00" until="2100-01-01T00:00+00:00":
+    uv run python -m trafficcam.signals.study flow --config ../config/site.yaml \
+        --changes ../calibration/signals/changes.csv --crossings ../calibration/signals/crossings.csv \
+        --from {{from}} --until {{until}}
+
+# Test the signal estimator on calibration/signals/: each group hidden in turn and scored against what was read
+[arg("from", long="from", help="Use what follows this time")]
+[arg("until", long="until", help="And what precedes this one")]
+[working-directory('vision')]
+eval-signal-plan from="1970-01-01T00:00+00:00" until="2100-01-01T00:00+00:00":
+    uv run python -m trafficcam.signals.study evaluate --config ../config/site.yaml \
+        --changes ../calibration/signals/changes.csv --crossings ../calibration/signals/crossings.csv \
+        --from {{from}} --until {{until}}
+
 # Draw the site config's geometry over calibration/frame.png, into calibration/preview.png
 [working-directory('vision')]
 preview:

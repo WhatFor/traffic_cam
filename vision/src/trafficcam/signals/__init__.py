@@ -8,6 +8,7 @@ from typing import NamedTuple, Protocol
 
 from trafficcam.config import SiteConfig
 from trafficcam.contracts import SignalChange, SignalSource, SignalState
+from trafficcam.signals.estimator import NullEstimator, PhaseEstimator
 from trafficcam.sources import Frame
 
 KEEP = timedelta(minutes=15)
@@ -38,10 +39,16 @@ UNKNOWN = LineState(SignalState.unknown, None, None)
 
 
 class Signals:
-    """Keeps each head's recent states, and reports the changes as contract records."""
+    """Keeps each head's recent states, and reports the changes as contract records.
 
-    def __init__(self, config: SiteConfig, config_hash: str) -> None:
+    Where no head can say what a line is under, the estimator is asked.
+    """
+
+    def __init__(
+        self, config: SiteConfig, config_hash: str, estimator: PhaseEstimator | None = None
+    ) -> None:
         self._config = config
+        self._estimator = estimator or NullEstimator()
         self._camera = config.camera.id
         self._config_hash = config_hash
         # Per head, oldest first: (since, state).
@@ -61,6 +68,7 @@ class Signals:
             # A reading can only be dated after what is already recorded.
             since = max(reading.since, history[-1][0]) if history else reading.since
             history.append((since, reading.state))
+            self._estimator.observe(head, previous, reading.state, since)
             while len(history) > 2 and timestamp - history[1][0] > KEEP:
                 del history[0]
             changes.append(
@@ -103,13 +111,12 @@ class Signals:
         return SignalState.unknown, None
 
     def line_state(self, target: str, at: datetime) -> LineState | None:
-        """The state of the heads controlling a stop line or movement; None if it has none.
+        """The signal a stop line or movement is under; None if nothing controls it.
 
         Heads that are unknown are left out. If the rest disagree, the answer is unknown.
+        If none is left, it is whatever the estimator can work out, marked as inferred.
         """
         heads = self._config.heads_controlling(target)
-        if not heads:
-            return None
         known = [
             (head, state, since)
             for head in heads
@@ -117,8 +124,16 @@ class Signals:
             if state != SignalState.unknown and since is not None
         ]
         states = {state for _, state, _ in known}
-        if len(states) != 1:
+        if len(states) > 1:
             return UNKNOWN
+        if not states:
+            inferred = self._estimator.state_of(target, at)
+            if inferred is None:
+                return UNKNOWN if heads else None
+            state, since = inferred
+            if state == SignalState.unknown:
+                return UNKNOWN
+            return LineState(state, SignalSource.inferred, since)
         (state,) = states
         sources = {self.source_of(head, state) for head, _, _ in known}
         source = (

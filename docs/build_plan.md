@@ -414,6 +414,8 @@ The model to build instead:
 
 Start with a `NullEstimator` and build this only after weeks of observer data exist (Phase 9). To evaluate it, hide one visible head from the estimator and score its predictions against the observer. If accuracy stays poor, drop the feature; the rest of the system doesn't depend on it.
 
+As built (ADR 0022): this junction turned out to be simpler than feared. The order of stages never varies and eight of the eleven gaps between changes are fixed, so the estimator is arithmetic on the earliest and latest each change can have happened, from a plan of the signals kept in `site.yaml`. It was built on one day of data, not weeks; `just eval-signal-plan` repeats the test.
+
 ## Detector specifications
 
 Every detector is a pure function of the frame context and its own state, with parameters in `site.yaml` and fixture tests from recorded track logs. Passages carry the denominators (every crossing and movement), so most detectors only flag exceptions.
@@ -715,8 +717,8 @@ Acceptance: a car driven through at a steady, GPS-logged speed reads within ±10
 
 ### Phase 9 — Advanced detection
 
-- [ ] Incident-candidate detector and near-miss detector.
-- [ ] Stage-sequence phase estimator, evaluated against a held-out visible head.
+- [x] Incident-candidate detector and near-miss detector.
+- [x] Stage-sequence phase estimator, evaluated against a held-out visible head. (ADR 0022)
 
 Acceptance: incident false candidates stay within a tolerable daily number; estimator accuracy is reported.
 

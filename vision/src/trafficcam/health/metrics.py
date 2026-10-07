@@ -44,6 +44,22 @@ class _Dropped(Collector):
         yield family
 
 
+class _PlanViolations(Collector):
+    """Signal changes that came outside the plan of the signals, counted by the estimator."""
+
+    def __init__(self) -> None:
+        self.count: Callable[[], int] | None = None
+
+    def collect(self) -> Iterator[CounterMetricFamily]:
+        family = CounterMetricFamily(
+            f"{NAMESPACE}_{SUBSYSTEM}_signal_plan_violations",
+            "Signal changes seen outside a gap the plan of the signals fixes.",
+        )
+        if self.count is not None:
+            family.add_metric([], self.count())
+        yield family
+
+
 class Metrics:
     """Counts what goes through the pipeline. Observes frames and receives passages."""
 
@@ -53,6 +69,8 @@ class Metrics:
         ProcessCollector(registry=self.registry)
         self._dropped = _Dropped()
         self.registry.register(self._dropped)
+        self._plan_violations = _PlanViolations()
+        self.registry.register(self._plan_violations)
         self._frames = Counter("frames", "Frames processed.", **names)
         self._frame_interval = Histogram(
             "frame_interval_seconds",
@@ -107,6 +125,9 @@ class Metrics:
 
     def watch_dropped(self, queue: str, count: Callable[[], int]) -> None:
         self._dropped.counts[queue] = count
+
+    def watch_signal_plan(self, violations: Callable[[], int]) -> None:
+        self._plan_violations.count = violations
 
     def watch_clips_folder(self, size: Callable[[], int]) -> None:
         self._clips_bytes.set_function(lambda: float(size()))
