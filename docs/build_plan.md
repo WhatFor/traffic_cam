@@ -308,11 +308,13 @@ signal_heads:
   sh_south_primary:
     lamps: { red: [x, y, w, h], amber: [x, y, w, h], green: [x, y, w, h] }
     controls: [stopline_south]
+ground_points: [{ pixel: [x, y], ground: [east_m, north_m] }, ...]   # the road in metres (ADR 0019)
 detectors:
   box_junction: { min_stationary_s: 3.0, exempt_movements: [right turns] }
   red_light: { grace_s: 0.5 }
-  speed: { ground_points: [{ pixel: [x, y], ground: [east_m, north_m] }, ...], limit_mph: 30, flag_above_mph: 35 }
-  incident: { decel_mps2: 6.0, notify_min_confidence: 0.7 }
+  speed: { limit_mph: 30, flag_above_mph: 35 }
+  near_miss: { pet_max_s: 1.5 }
+  incident: { contact_s: 0.5, standstill_after_s: 20, lone_standstill_s: 60, min_confidence: 0.5, notify_min_confidence: 0.7 }
 clips:
   dir: /mnt/data/clips
   pre_s: 5              # default lengths; the manual trigger uses these
@@ -420,8 +422,8 @@ Every detector is a pure function of the frame context and its own state, with p
 | Red light | Inbound stop-line crossing while the controlling head is *observed* red for longer than `grace_s` | 0.5 s grace | Optional |
 | Amber crossing | Inbound stop-line crossing on amber | — | No |
 | Speeding | Fastest speed held for a second exceeds the limit plus a tolerance | Ground points; limit; tolerance | From 45 mph |
-| Incident candidate | Weighted score of crash signals above a threshold | Deceleration, overlap, stationary time | Always |
-| Near-miss | Post-encroachment time between conflicting tracks below a threshold | e.g. 1.5 s | Optional |
+| Incident candidate | A contact between crossing paths followed by a standstill, or a long standstill where traffic flows (ADR 0020) | Contact gap, standstill times, confidence | Always |
+| Near-miss | Post-encroachment time between tracks on crossing paths below a threshold (ADR 0020) | 2 s between tracked points | Under 1.5 s |
 
 Notes per detector:
 

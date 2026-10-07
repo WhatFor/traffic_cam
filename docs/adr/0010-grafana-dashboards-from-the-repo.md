@@ -23,6 +23,8 @@ A third, Signals (`/d/signals`), reads signal changes, crossings by signal state
 
 A fourth, Speed (`/d/speed`), reads passage speeds and speeding events: the distribution of sustained speeds, median and 85th percentile over time and by movement, and stretch averages by the signal crossed on (0019).
 
+A fifth, Safety (`/d/safety`), reads near-miss and incident-candidate events: how many, how far apart, which movements meet and where (0020).
+
 ## Consequences
 
 - Grafana connects to the database as its owner, with the password from `deploy/.env`. Anyone who can edit a panel's query can change data. A read-only role would close that; nobody but the owner uses this Grafana.

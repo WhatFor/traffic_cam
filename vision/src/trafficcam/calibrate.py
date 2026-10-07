@@ -86,14 +86,14 @@ def locate(points: dict[str, _Point]) -> list[Located]:
 
 def site_yaml_block(located: list[Located]) -> str:
     lines = [
-        "    ground_points:            # pixel in the frame; metres east and north of the first"
+        "ground_points:                # pixel in the frame; metres east and north of the first"
     ]
     for point in located:
         if point.pixel is not None:
             x, y = point.pixel
             east, north = point.ground
             where = f"pixel: [{x:g}, {y:g}], ground: [{east:.2f}, {north:.2f}]"
-            lines.append(f"      - {{ {where} }}   # {point.name}")
+            lines.append(f"  - {{ {where} }}   # {point.name}")
     return "\n".join(lines)
 
 
@@ -196,7 +196,7 @@ def fit(points: dict[str, _Point], frame: Image.Image, out: Path) -> None:
             print(
                 f"  {point.name} is hidden from the camera; the map puts it at ({x:.0f}, {y:.0f})"
             )
-    print("\nFor detectors.speed in site.yaml:\n")
+    print("\nFor site.yaml:\n")
     print(site_yaml_block(located))
     out.mkdir(parents=True, exist_ok=True)
     plan_view(frame, ground_map, located).save(out / "ground_plan.png")

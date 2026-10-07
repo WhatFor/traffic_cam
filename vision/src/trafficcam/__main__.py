@@ -11,6 +11,9 @@ from trafficcam.config import ConfigError, SiteConfig, load_site_config
 from trafficcam.detectors import Detector
 from trafficcam.detectors.banned_turn import BannedTurns
 from trafficcam.detectors.box_junction import BoxJunctionStops
+from trafficcam.detectors.conflicts import Conflicts
+from trafficcam.detectors.incident import Incidents
+from trafficcam.detectors.near_miss import NearMiss
 from trafficcam.detectors.red_light import RedLight
 from trafficcam.detectors.speeding import Speeding
 from trafficcam.geometry import SceneGeometry
@@ -97,6 +100,14 @@ def open_detectors(config: SiteConfig, config_hash: str, signals: Signals) -> li
         detectors.append(RedLight(config, config_hash, signals))
     if config.detectors.speed is not None:
         detectors.append(Speeding(config, config_hash))
+    near_miss, incident = config.detectors.near_miss, config.detectors.incident
+    if near_miss is not None:
+        conflicts = Conflicts(
+            near_miss, max(near_miss.pet_max_s, incident.contact_s if incident else 0)
+        )
+        detectors.append(NearMiss(config, config_hash, conflicts))
+        if incident is not None:
+            detectors.append(Incidents(config, config_hash, conflicts))
     return detectors
 
 

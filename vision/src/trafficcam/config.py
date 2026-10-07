@@ -153,8 +153,6 @@ class Stretch(_Section):
 
 
 class Speed(_Section):
-    # Speeds are measured among these points and nowhere else.
-    ground_points: list[GroundPoint] = Field(min_length=4)
     # A passage's speed is the fastest it held for this long.
     sustained_s: PositiveFloat = 1.0
     stretches: dict[str, Stretch] = {}
@@ -163,23 +161,33 @@ class Speed(_Section):
     # measurement can be wrong by.
     flag_above_mph: PositiveFloat
 
-    def ground_map(self) -> GroundMap:
-        return GroundMap(
-            [point.pixel for point in self.ground_points],
-            [point.ground for point in self.ground_points],
-        )
-
     @model_validator(mode="after")
     def _check(self) -> Self:
         if self.flag_above_mph < self.limit_mph:
             raise ValueError("flag_above_mph is below limit_mph")
-        # Raises if the points do not make a mapping that can be trusted.
-        self.ground_map()
         return self
 
 
+class NearMiss(_Section):
+    # Two road users on crossing paths that reach the same spot less than this apart.
+    pet_max_s: PositiveFloat
+    # Paths at a smaller angle are one following the other, or two streams merging.
+    min_angle_deg: float = Field(default=45, gt=0, lt=180)
+    # Both must be going at least this fast at the spot.
+    min_speed_mph: PositiveFloat = 3.0
+
+
 class Incident(_Section):
-    decel_mps2: PositiveFloat
+    # Crossing paths this close in time may have touched. Alone that is a near miss.
+    contact_s: PositiveFloat
+    # ...unless one of the two then stands near the spot for this long.
+    standstill_after_s: PositiveFloat
+    # A vehicle standing this long where traffic does not queue is a candidate by itself.
+    lone_standstill_s: PositiveFloat
+    # How far a ground point may wander and still count as standing still.
+    stationary_radius_px: PositiveFloat = 10.0
+    # A candidate at least this sure raises an event; one this sure is worth telling someone.
+    min_confidence: float = Field(ge=0, le=1)
     notify_min_confidence: float = Field(ge=0, le=1)
 
 
@@ -188,14 +196,17 @@ class Detectors(_Section):
     banned_turns: BannedTurns | None = None
     red_light: RedLight | None = None
     speed: Speed | None = None
+    near_miss: NearMiss | None = None
     incident: Incident | None = None
 
 
 class ClipLength(_Section):
     pre_s: NonNegativeFloat | None = None
     post_s: PositiveFloat | None = None
-    # Only an event with every one of these attributes at or above the value triggers a clip.
+    # Only an event with every one of these attributes at or above the value triggers a
+    # clip, and every one of those in `max` at or below.
     min: dict[str, float] = {}
+    max: dict[str, float] = {}
 
 
 class Clips(_Section):
@@ -218,11 +229,14 @@ class Clips(_Section):
         rule = self.events.get(event_type)
         if rule is None:
             return False
-        values = (attrs.get(name) for name in rule.min)
-        return all(
-            isinstance(value, int | float) and value >= least
-            for value, least in zip(values, rule.min.values(), strict=True)
-        )
+
+        def within(limits: Mapping[str, float], sign: int) -> bool:
+            return all(
+                isinstance(value := attrs.get(name), int | float) and sign * value >= sign * limit
+                for name, limit in limits.items()
+            )
+
+        return within(rule.min, 1) and within(rule.max, -1)
 
     def lengths(self, event_type: str | None = None) -> tuple[float, float]:
         """Seconds kept before and after a trigger of this event type, or a manual one."""
@@ -253,6 +267,9 @@ class SiteConfig(_Section):
     lines: dict[str, Line]
     movements: dict[str, Movement]
     signal_heads: dict[str, SignalHead]
+    # The road in metres, for the detectors that need distances. Empty where it has not
+    # been measured.
+    ground_points: list[GroundPoint] = []
     detectors: Detectors
     clips: Clips
 
@@ -284,6 +301,15 @@ class SiteConfig(_Section):
             for colour, (x, y, w, h) in head.lamps.items():
                 if outside(x + w, y + h):
                     yield f"signal_heads.{name}.lamps.{colour} is outside the frame"
+
+    def ground_map(self) -> GroundMap | None:
+        """The map of the road fitted to `ground_points`, if there are any."""
+        if not self.ground_points:
+            return None
+        return GroundMap(
+            [point.pixel for point in self.ground_points],
+            [point.ground for point in self.ground_points],
+        )
 
     def lamp_regions(self) -> dict[str, Rect]:
         """Every lamp's square, keyed "head/colour", for a source to sample."""
@@ -320,6 +346,15 @@ class SiteConfig(_Section):
             for head in self.detectors.banned_turns.signal_heads:
                 if head not in self.signal_heads:
                     yield f"detectors.banned_turns.signal_heads names unknown head '{head}'"
+        try:
+            self.ground_map()
+        except ValueError as error:
+            yield f"ground_points: {error}"
+        for name in ("speed", "near_miss", "incident"):
+            if getattr(self.detectors, name) is not None and not self.ground_points:
+                yield f"detectors.{name} needs ground_points"
+        if self.detectors.incident is not None and self.detectors.near_miss is None:
+            yield "detectors.incident needs detectors.near_miss, whose conflicts it starts from"
 
 
 def load_site_config(path: Path) -> tuple[SiteConfig, str]:

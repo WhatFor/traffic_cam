@@ -14,17 +14,15 @@ from test_passages import CAR, LOST_FRAMES
 from trafficcam.config import SiteConfig, Speed
 from trafficcam.detectors.speeding import Speeding
 from trafficcam.geometry import Observation, SceneGeometry
+from trafficcam.groundmap import GroundMap
 from trafficcam.passages import PassageBuilder
 from trafficcam.speed import KMH_PER_MPH, SpeedMeter
 
 # A stretch of the road in test_groundmap: from 20 m to 40 m east, the full width.
 STRETCH = np.array([[20.0, 0.0], [40.0, 0.0], [40.0, 40.0], [20.0, 40.0]])
+GROUND = GroundMap(pixels_of(MEASURED).tolist(), MEASURED.tolist())
 SETTINGS = Speed.model_validate(
     {
-        "ground_points": [
-            {"pixel": pixel, "ground": ground}
-            for pixel, ground in zip(pixels_of(MEASURED).tolist(), MEASURED.tolist(), strict=True)
-        ],
         "stretches": {
             "middle": {"polygon": np.round(pixels_of(STRETCH)).astype(int).tolist(), "min_m": 15}
         },
@@ -46,7 +44,14 @@ def observe(positions: dict[int, Ground]) -> Observation:
         tracker_id=np.array(list(positions), dtype=np.int_),
     )
     ground_points = tracks.get_anchors_coordinates(sv.Position.BOTTOM_CENTER).astype(np.float64)
-    return Observation(tracks, ground_points, zones={}, crossings=[])
+    return Observation(
+        tracks,
+        ground_points,
+        zones={},
+        crossings=[],
+        ground_m=GROUND.to_ground(ground_points),
+        mapped=GROUND.contains(ground_points),
+    )
 
 
 def drive(meter: SpeedMeter, path: Sequence[Ground | None], track_id: int = 7) -> None:
@@ -191,14 +196,14 @@ def test_tracks_are_measured_side_by_side() -> None:
 
 # The junction of test_geometry, ten pixels to the metre.
 SPEED_SITE = copy.deepcopy(SITE) | {
+    "ground_points": [
+        {"pixel": [0, 0], "ground": [0, 150]},
+        {"pixel": [2000, 0], "ground": [200, 150]},
+        {"pixel": [2000, 1500], "ground": [200, 0]},
+        {"pixel": [0, 1500], "ground": [0, 0]},
+    ],
     "detectors": {
         "speed": {
-            "ground_points": [
-                {"pixel": [0, 0], "ground": [0, 150]},
-                {"pixel": [2000, 0], "ground": [200, 150]},
-                {"pixel": [2000, 1500], "ground": [200, 0]},
-                {"pixel": [0, 1500], "ground": [0, 0]},
-            ],
             "stretches": {
                 "box": {"polygon": [[800, 400], [1200, 400], [1200, 800], [800, 800]], "min_m": 30}
             },

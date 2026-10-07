@@ -10,7 +10,7 @@ The build plan stores a 3x3 matrix in `site.yaml` and names one detector, speedi
 
 ## Decision
 
-**`site.yaml` holds measured points; the mapping is fitted from them at start-up.** `detectors.speed.ground_points` lists points on the road surface with their pixel in the frame and their position in metres east and north of the first. A plane-to-plane mapping is fitted to them when the config loads. Points can be read, checked and corrected; a matrix cannot. Loading fails with fewer than four points, with points nearly in a line, or if any point is more than 1 m from where the rest put it.
+**`site.yaml` holds measured points; the mapping is fitted from them at start-up.** `ground_points`, at the top level of the file since the near-miss and incident detectors began using the same map (0020), lists points on the road surface with their pixel in the frame and their position in metres east and north of the first. A plane-to-plane mapping is fitted to them when the config loads. Points can be read, checked and corrected; a matrix cannot. Loading fails with fewer than four points, with points nearly in a line, or if any point is more than 1 m from where the rest put it.
 
 **Latitude and longitude never go in the repo.** The points were read off satellite imagery. Coordinates would say where the camera is, so they stay in `calibration/ground_points.yaml`, which is git-ignored. `just calibrate-speed` turns them into metres, prints the block for `site.yaml`, reports each point's error, and writes two images to check by eye: the frame laid flat with a 5 m grid, and the grid drawn back on the camera's view.
 

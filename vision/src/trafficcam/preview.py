@@ -76,16 +76,17 @@ def render(frame: Image.Image, config: SiteConfig) -> Image.Image:
         draw.rectangle([left, top, right, bottom], outline=LAMP_COLOUR, width=2)
         label(right + 6, top - 4, name, LAMP_COLOUR)
 
-    speed = config.detectors.speed
-    if speed is not None:
-        # Speeds are measured inside this outline, which joins the outermost ground points.
-        hull = [(float(x), float(y)) for x, y in speed.ground_map().hull]
+    ground_map = config.ground_map()
+    if ground_map is not None:
+        # Distances are measured inside this outline, which joins the outermost ground points.
+        hull = [(float(x), float(y)) for x, y in ground_map.hull]
         draw.line([*hull, hull[0]], fill=SPEED_COLOUR, width=3)
-        label(hull[0][0] + 8, hull[0][1] + 8, "speed is measured inside", SPEED_COLOUR)
-        for point in speed.ground_points:
+        label(hull[0][0] + 8, hull[0][1] + 8, "metres are measured inside", SPEED_COLOUR)
+        for point in config.ground_points:
             x, y = point.pixel
             draw.ellipse([x - 5, y - 5, x + 5, y + 5], outline=SPEED_COLOUR, width=2)
-        for name, stretch in speed.stretches.items():
+    if config.detectors.speed is not None:
+        for name, stretch in config.detectors.speed.stretches.items():
             draw.polygon(stretch.polygon, outline=SPEED_COLOUR, width=2)
             label(
                 stretch.polygon[0][0] + 8,

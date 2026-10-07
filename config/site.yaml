@@ -109,6 +109,20 @@ signal_heads:
     lamps: { red: [1092, 887, 3, 3], green: [1091, 892, 3, 3] }
     controls: []
 
+# The road in metres: points found both in the frame and on a map, fitted with
+# `just calibrate-speed`. Distances are measured only among them. Metres are east and north
+# of the first point.
+ground_points:
+  - { pixel: [958, 776], ground: [0.00, 0.00] }       # box junction, north-west corner
+  - { pixel: [1201, 574], ground: [24.35, 7.46] }     # box junction, north-east corner
+  - { pixel: [1452, 861], ground: [5.56, -16.47] }    # box junction, south-west corner
+  - { pixel: [735, 957], ground: [-13.98, -4.22] }    # west approach cycle box, rear corner
+  - { pixel: [792, 909], ground: [-10.59, -3.20] }    # west approach cycle box, front corner
+  - { pixel: [740, 671], ground: [2.00, 13.90] }      # north stop line, island end
+  - { pixel: [809, 612], ground: [9.44, 17.81] }      # north stop line, kerb end
+  - { pixel: [1354, 576], ground: [27.60, 1.20] }     # nose of the island east of the box
+  - { pixel: [1009, 704], ground: [6.23, 3.02] }      # nose of the island north of the box
+
 detectors:
   box_junction:
     min_stationary_s: 3.0
@@ -120,18 +134,6 @@ detectors:
     signal_heads: [south, crossing_west_exit]   # what these showed is noted on the event
   red_light: { grace_s: 0.5 }
   speed:
-    # Points found both in the frame and on a map, fitted with `just calibrate-speed`.
-    # Speeds are measured only among them. Metres are east and north of the first point.
-    ground_points:
-      - { pixel: [958, 776], ground: [0.00, 0.00] }       # box junction, north-west corner
-      - { pixel: [1201, 574], ground: [24.35, 7.46] }     # box junction, north-east corner
-      - { pixel: [1452, 861], ground: [5.56, -16.47] }    # box junction, south-west corner
-      - { pixel: [735, 957], ground: [-13.98, -4.22] }    # west approach cycle box, rear corner
-      - { pixel: [792, 909], ground: [-10.59, -3.20] }    # west approach cycle box, front corner
-      - { pixel: [740, 671], ground: [2.00, 13.90] }      # north stop line, island end
-      - { pixel: [809, 612], ground: [9.44, 17.81] }      # north stop line, kerb end
-      - { pixel: [1354, 576], ground: [27.60, 1.20] }     # nose of the island east of the box
-      - { pixel: [1009, 704], ground: [6.23, 3.02] }      # nose of the island north of the box
     sustained_s: 1.0              # a passage's speed is the fastest it held for this long
     stretches:                    # average speed, entry to exit, for the dashboard
       box:                        # across the box junction, as far as the camera sees it
@@ -139,7 +141,18 @@ detectors:
         min_m: 12
     limit_mph: 30
     flag_above_mph: 35            # the limit, plus 10% and 2 mph
-  incident: { decel_mps2: 6.0, notify_min_confidence: 0.7 }
+  near_miss:
+    # Crossing paths whose tracked points reach one spot less than this apart. A vehicle is
+    # one point here, so 2 s between points is about 1.5 s between bodies, the usual threshold.
+    pet_max_s: 2.0
+    min_angle_deg: 60             # less is one following the other, or two streams merging
+    min_speed_mph: 8              # slower than this, vehicles are edging round each other in the box
+  incident:
+    contact_s: 1.0                # points this close in time may be bodies touching; none in 17 h of traffic
+    standstill_after_s: 20        # ...and count if one of the two then stands this long
+    lone_standstill_s: 90         # standing a whole signal cycle where traffic does not queue
+    min_confidence: 0.5           # a candidate this sure is an event
+    notify_min_confidence: 0.7    # for the notifier, when there is one
 
 clips:
   dir: /mnt/data/clips
@@ -152,5 +165,9 @@ clips:
   events:               # the event types that trigger a clip, with their own lengths
     red_light: { pre_s: 5, post_s: 15 }
     banned_turn: { pre_s: 5, post_s: 15 }
-    box_junction_stop: { pre_s: 5, post_s: 15 }
+    # A stop in the box is sometimes what follows a collision: on 2026-10-07 one began six
+    # seconds after two cars met, and with 5 s of lead-in its clip missed the impact by a moment.
+    box_junction_stop: { pre_s: 30, post_s: 15 }
     speeding: { pre_s: 5, post_s: 15, min: { speed_mph: 45 } }   # an event from 35, a clip from 45
+    near_miss: { pre_s: 5, post_s: 10, max: { pet_s: 1.5 } }     # an event under 2 s, a clip under 1.5
+    incident_candidate: {}                                        # the default lengths

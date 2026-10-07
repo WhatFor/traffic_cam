@@ -27,6 +27,11 @@ public static class Wording
             root.TryGetProperty("movement", out var movement) && movement.ValueKind == JsonValueKind.String
                 ? movement.GetString()
                 : null,
+            // A near miss is between two movements; an incident candidate lists what was seen of it.
+            Listed(root, "movements", " and ", unknown: "unknown"),
+            Listed(root, "signs", ", ", unknown: null)?.Replace('_', ' '),
+            Measure(root, "pet_s", "{0} s apart"),
+            Measure(root, "standing_s", "stood {0} s"),
             Measure(root, "speed_mph", "{0} mph"),
             Measure(root, "time_into_red_s", "{0} s into red"),
             Measure(root, "time_into_amber_s", "{0} s into amber"),
@@ -50,6 +55,16 @@ public static class Wording
     /// <summary>What a time reads as until the page's script puts it in the reader's own time zone.</summary>
     public static string Utc(DateTimeOffset at) =>
         at.UtcDateTime.ToString("ddd d MMM HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
+
+    static string? Listed(JsonElement attrs, string name, string separator, string? unknown)
+    {
+        if (!attrs.TryGetProperty(name, out var list) || list.ValueKind != JsonValueKind.Array)
+            return null;
+        var items = list.EnumerateArray()
+            .Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() : unknown)
+            .Where(item => item is not null);
+        return string.Join(separator, items);
+    }
 
     static string? Measure(JsonElement attrs, string name, string format) =>
         attrs.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number

@@ -21,6 +21,10 @@ class Observation:
     ground_points: Points  # full-frame pixels
     zones: dict[str, npt.NDArray[np.bool_]]  # zone name -> which tracks are in it
     crossings: list[Crossing]
+    # Where the site has a map of the road: each ground point in metres, and whether it
+    # lies among the points the map was fitted to, where the metres can be trusted.
+    ground_m: Points | None = None
+    mapped: npt.NDArray[np.bool_] | None = None
 
     def zones_of(self, index: int) -> list[str]:
         return [name for name, inside in self.zones.items() if inside[index]]
@@ -38,6 +42,7 @@ class SceneGeometry:
             )
             for name, zone in config.zones.items()
         }
+        self._ground_map = config.ground_map()
         centre = junction_centre(config)
         self._lines = [
             LineCrossings(name, line, centre, config.tracking.lost_s)
@@ -48,6 +53,10 @@ class SceneGeometry:
         # A vehicle's box includes its roof; the middle of the bottom edge is where it stands.
         ground_points = tracks.get_anchors_coordinates(sv.Position.BOTTOM_CENTER).astype(np.float64)
         ids = tracks.tracker_id if tracks.tracker_id is not None else np.empty(0, dtype=np.int_)
+        ground_m = mapped = None
+        if self._ground_map is not None:
+            ground_m = self._ground_map.to_ground(ground_points)
+            mapped = self._ground_map.contains(ground_points)
         return Observation(
             tracks=tracks,
             ground_points=ground_points,
@@ -57,4 +66,6 @@ class SceneGeometry:
                 for line in self._lines
                 for crossing in line.update(ids, ground_points, timestamp)
             ],
+            ground_m=ground_m,
+            mapped=mapped,
         )

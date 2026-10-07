@@ -10,7 +10,7 @@ from test_groundmap import MEASURED, pixels_of
 
 from trafficcam import calibrate
 from trafficcam.calibrate import locate, metres_from, site_yaml_block
-from trafficcam.config import Speed
+from trafficcam.groundmap import GroundMap
 
 ORIGIN = (53.5, -2.25)
 
@@ -59,8 +59,10 @@ def test_points_are_located_from_the_first_one_on_the_map(tmp_path: Path) -> Non
 def test_the_block_for_site_yaml_holds_metres_and_no_coordinates(tmp_path: Path) -> None:
     block = site_yaml_block(locate(calibrate.load(points_file(tmp_path))))
 
-    settings = yaml.safe_load(block) | {"limit_mph": 30, "flag_above_mph": 35}
-    assert len(Speed.model_validate(settings).ground_points) == 6
+    points = yaml.safe_load(block)["ground_points"]
+    assert len(points) == 6
+    fitted = GroundMap([point["pixel"] for point in points], [point["ground"] for point in points])
+    assert fitted.errors_m.max() < 0.02
     assert "hidden" not in block
     assert "53." not in block.replace("pixel", "")
 

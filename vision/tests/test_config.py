@@ -56,21 +56,25 @@ FULL: dict[str, Any] = {
             "controls": ["stopline_south"],
         }
     },
+    # The image is the ground at 10 pixels to the metre, with north up.
+    "ground_points": [
+        {"pixel": [0, 0], "ground": [0, 100]},
+        {"pixel": [2000, 0], "ground": [200, 100]},
+        {"pixel": [2000, 1500], "ground": [200, -50]},
+        {"pixel": [0, 1500], "ground": [0, -50]},
+    ],
     "detectors": {
         "box_junction": {"min_stationary_s": 3.0, "exempt_movements": ["left_turn_watch"]},
         "red_light": {"grace_s": 0.5},
-        "speed": {
-            # The image is the ground at 10 pixels to the metre, with north up.
-            "ground_points": [
-                {"pixel": [0, 0], "ground": [0, 100]},
-                {"pixel": [2000, 0], "ground": [200, 100]},
-                {"pixel": [2000, 1500], "ground": [200, -50]},
-                {"pixel": [0, 1500], "ground": [0, -50]},
-            ],
-            "limit_mph": 30,
-            "flag_above_mph": 35,
+        "speed": {"limit_mph": 30, "flag_above_mph": 35},
+        "near_miss": {"pet_max_s": 1.5},
+        "incident": {
+            "contact_s": 0.5,
+            "standstill_after_s": 20,
+            "lone_standstill_s": 60,
+            "min_confidence": 0.5,
+            "notify_min_confidence": 0.7,
         },
-        "incident": {"decel_mps2": 6.0, "notify_min_confidence": 0.7},
     },
     "clips": {
         "dir": "/mnt/data/clips",
@@ -82,6 +86,7 @@ FULL: dict[str, Any] = {
             "red_light": {"pre_s": 5, "post_s": 15},
             "incident_candidate": {},
             "speeding": {"min": {"speed_mph": 45}},
+            "near_miss": {"max": {"pet_s": 1.0}},
         },
     },
 }
@@ -154,22 +159,25 @@ def _set(path: str, value: Any) -> Callable[[dict[str, Any]], None]:
         (_set("zones.approach_south.entry_heading", [0, 400]), "entry_heading"),
         (_set("clips.events.red_light.pre_s", 120), "pre_s must be less than buffer_s"),
         (_set("clips.max_s", 30), "more than max_s"),
+        (_set("ground_points", []), "detectors.speed needs ground_points"),
+        (_set("detectors.near_miss", None), "detectors.incident needs detectors.near_miss"),
+        (_set("detectors.near_miss.min_angle_deg", 180), "min_angle_deg"),
         (_set("clips.events.red_light.length", 20), "length"),
         (_set("detectors.speed.flag_above_mph", 25), "below limit_mph"),
         (
-            _set("detectors.speed.ground_points", [{"pixel": [0, 0], "ground": [0, 0]}] * 3),
-            "ground_points",
+            _set("ground_points", [{"pixel": [0, 0], "ground": [0, 0]}] * 3),
+            "at least four",
         ),
         (
             _set(
-                "detectors.speed.ground_points",
+                "ground_points",
                 [{"pixel": [x, x], "ground": [x, x]} for x in (0, 100, 200, 300)],
             ),
             "nearly in a line",
         ),
         (
             _set(
-                "detectors.speed.ground_points",
+                "ground_points",
                 [
                     {"pixel": [0, 0], "ground": [0, 100]},
                     {"pixel": [2000, 0], "ground": [200, 100]},
@@ -233,3 +241,5 @@ def test_a_clip_can_wait_for_an_event_to_be_bad_enough() -> None:
     assert clips.wants("speeding", {"speed_mph": 45.0})
     assert not clips.wants("speeding", {"speed_mph": 44.9})
     assert not clips.wants("speeding", {})
+    assert clips.wants("near_miss", {"pet_s": 0.8})
+    assert not clips.wants("near_miss", {"pet_s": 1.2})
