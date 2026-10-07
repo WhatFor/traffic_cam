@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from trafficcam.contracts import RoadUserClass, SignalState
 from trafficcam.geometry import Observation
 from trafficcam.inference import CLASS_NAMES
+from trafficcam.sources import Rgb
 
 SCHEMA = "trafficcam.tracklog.v1"
 
@@ -57,6 +58,9 @@ class FrameRecord(_Record):
     crossings: list[LineCrossing]
     # Every signal head's state in this frame. Absent from logs made before signals were read.
     signals: dict[str, SignalState] = {}
+    # The mean colour of every lamp's square, as "head/lamp": what the states were read from,
+    # kept so that the reading can be worked on again. Absent from logs made before 2026-10-07.
+    lamps: dict[str, Rgb] = {}
 
 
 def _exact(value: np.floating) -> float:
@@ -84,6 +88,7 @@ def to_record(
     detections: sv.Detections,
     observation: Observation,
     signals: Mapping[str, SignalState],
+    lamps: Mapping[str, Rgb],
 ) -> FrameRecord:
     tracks = observation.tracks
     ids = tracks.tracker_id if tracks.tracker_id is not None else []
@@ -101,5 +106,7 @@ def to_record(
                 for crossing in observation.crossings
             ],
             "signals": signals,
+            # A tenth of a level is finer than the camera gives.
+            "lamps": {name: [round(level, 1) for level in rgb] for name, rgb in lamps.items()},
         }
     )

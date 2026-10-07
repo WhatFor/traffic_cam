@@ -163,7 +163,9 @@ detectors:
   banned_turns:
     movements: [left_from_south]
     signal_heads: [south, crossing_west_exit]   # what these showed is noted on the event
-  red_light: { grace_s: 0.5 }
+  # A red or amber worked out from signal_plan counts too, if its start is placed to within
+  # a second: in practice the slip lane's, from the pedestrian crossing's head.
+  red_light: { grace_s: 0.5, inferred_within_s: 1.0 }
   speed:
     sustained_s: 1.0              # a passage's speed is the fastest it held for this long
     stretches:                    # average speed, entry to exit, for the dashboard

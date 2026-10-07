@@ -70,7 +70,9 @@ class Pipeline:
         # Before passages and detectors, which ask what the signals were showing.
         signal_changes: list[SignalChange] = []
         if self._signals is not None and self._signal_reader is not None:
-            signal_changes = self._signals.update(frame.timestamp, self._signal_reader.read(frame))
+            signal_changes = self._signals.update(
+                frame.timestamp, self._signal_reader.read(frame), frame.samples
+            )
         events = [
             event
             for detector in self._detectors

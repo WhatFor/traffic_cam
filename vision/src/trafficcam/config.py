@@ -134,6 +134,9 @@ class RedLight(_Section):
     grace_s: NonNegativeFloat
     # Whether a crossing on amber raises an event of its own.
     amber_events: bool = True
+    # A state worked out from the plan of the signals counts as well as one read from the
+    # lamps, if the change that began it is placed this closely. Absent, only a read one does.
+    inferred_within_s: NonNegativeFloat | None = None
 
 
 class GroundPoint(_Section):

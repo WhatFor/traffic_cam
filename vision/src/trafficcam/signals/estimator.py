@@ -10,7 +10,7 @@ import heapq
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 from trafficcam.config import SignalPlan, SiteConfig, change_of
 from trafficcam.contracts import SignalState
@@ -27,6 +27,12 @@ NEAR_S = 10.0
 # Only a gap fixed this tightly can show that the plan no longer holds.
 FIXED_WIDTH_S = 5.0
 REMEMBER_S = 15 * 60.0
+# A change placed no better than this is worth looking for in the lamps themselves.
+LOOSE_S = 2.0
+# How closely a change found from the lamps' steps is taken to be placed, either side.
+FOUND_WITHIN_S = 0.6
+# Stands for the lamps' steps where a head's name would be.
+STEPS = "(steps)"
 # No link reaches further than this, so changes seen further off say nothing about a moment.
 REACH_S = 200.0
 
@@ -47,7 +53,26 @@ class Window:
         return Window(self.earliest + span[0], self.latest + span[1])
 
 
-UNKNOWN: tuple[SignalState, datetime | None] = (SignalState.unknown, None)
+class Loose(NamedTuple):
+    """A change of a group that the plan places only loosely."""
+
+    group: str
+    edge: str
+    heads: list[str]
+    earliest: datetime
+    latest: datetime
+
+
+class Placed(NamedTuple):
+    """A state worked out for a moment."""
+
+    state: SignalState
+    since: datetime | None = None  # the latest it can have begun
+    # How closely the change that began it is placed, in seconds: the doubt in `since`.
+    within_s: float | None = None
+
+
+UNKNOWN = Placed(SignalState.unknown)
 
 
 class PhaseEstimator(Protocol):
@@ -55,9 +80,26 @@ class PhaseEstimator(Protocol):
         """Take note of a head's state changing, as read from its lamps."""
         ...
 
-    def state_of(self, target: str, at: datetime) -> tuple[SignalState, datetime | None] | None:
-        """The state of whatever controls a line or movement, and since when; None if nothing
-        in the plan controls it."""
+    def forget(self, head: str) -> None:
+        """Take back what a head was seen to do: its readings are no longer believed."""
+        ...
+
+    def loosely_placed(self, around: datetime) -> list[Loose]:
+        """The changes near a moment that are placed only loosely, for looking for."""
+        ...
+
+    def found(self, group: str, edge: str, at: datetime) -> None:
+        """Take a change as having been found at a moment."""
+        ...
+
+    def state_of(self, target: str, at: datetime) -> Placed | None:
+        """The state of whatever controls a line or movement; None if nothing in the plan
+        controls it."""
+        ...
+
+    def state_for_head(self, head: str, at: datetime) -> Placed | None:
+        """What a head should be showing, going only by heads of other groups; None if the
+        head is in no group."""
         ...
 
 
@@ -67,7 +109,19 @@ class NullEstimator:
     def observe(self, head: str, was: SignalState | None, now: SignalState, at: datetime) -> None:
         pass
 
-    def state_of(self, target: str, at: datetime) -> tuple[SignalState, datetime | None] | None:
+    def forget(self, head: str) -> None:
+        pass
+
+    def loosely_placed(self, around: datetime) -> list[Loose]:
+        return []
+
+    def found(self, group: str, edge: str, at: datetime) -> None:
+        pass
+
+    def state_of(self, target: str, at: datetime) -> Placed | None:
+        return None
+
+    def state_for_head(self, head: str, at: datetime) -> Placed | None:
         return None
 
 
@@ -102,10 +156,19 @@ class PlanTimings:
         self.changes = sorted(
             {(group, edge) for group in plan.groups for edge in (ON, OFF)} | set(both)
         )
-        # From one change to the nearest of another, along the run of links that places it best.
-        self.reach: dict[tuple[Change, Change], Span] = {}
+        # From one change to each occasion of another that links lead to: the one before it,
+        # the one after. For each occasion, the run of links that places it best.
+        every: dict[tuple[Change, Change], list[Span]] = {}
         for start in self.changes:
-            self._walk(start, start, (0.0, 0.0), {start}, both)
+            self._walk(start, start, (0.0, 0.0), {start}, both, every)
+        self.reach: dict[tuple[Change, Change], list[Span]] = {}
+        for pair, spans in every.items():
+            kept: list[Span] = []
+            for span in sorted(spans, key=lambda each: each[1] - each[0]):
+                # One that overlaps a narrower one is the same occasion, placed worse.
+                if all(span[1] < other[0] or span[0] > other[1] for other in kept):
+                    kept.append(span)
+            self.reach[pair] = kept
         # From one change to the next of another after it: the soonest, and the latest by the
         # same route.
         self.following: dict[tuple[Change, Change], Span] = {}
@@ -120,14 +183,13 @@ class PlanTimings:
         span: Span,
         visited: set[Change],
         links: dict[Change, list[tuple[Change, Span]]],
+        found: dict[tuple[Change, Change], list[Span]],
     ) -> None:
-        best = self.reach.get((start, here))
-        if best is None or span[1] - span[0] < best[1] - best[0]:
-            self.reach[(start, here)] = span
+        found.setdefault((start, here), []).append(span)
         for there, step in links.get(here, []):
             onward = (span[0] + step[0], span[1] + step[1])
             if there not in visited and onward[1] - onward[0] <= MAX_WIDTH_S:
-                self._walk(start, there, onward, visited | {there}, links)
+                self._walk(start, there, onward, visited | {there}, links, found)
 
     @staticmethod
     def _soonest(
@@ -173,6 +235,7 @@ class StageSequenceEstimator:
             name: not group.heads or any(self._full_head[head] for head in group.heads)
             for name, group in plan.groups.items()
         }
+        self._heads_of_group = {name: list(group.heads) for name, group in plan.groups.items()}
         self._group_of_target: dict[str, str] = {}
         for name, group in plan.groups.items():
             targets = [
@@ -181,7 +244,8 @@ class StageSequenceEstimator:
             ]
             for target in targets:
                 self._group_of_target[target] = name
-        self._seen: dict[Change, list[Window]] = {}
+        # What was seen, oldest first, each with the heads it was seen on.
+        self._seen: dict[Change, list[tuple[Window, set[str]]]] = {}
         # Changes that came outside where a fixed gap from another put them.
         self.violations = 0
 
@@ -193,27 +257,40 @@ class StageSequenceEstimator:
         if was == SignalState.amber and now == SignalState.green:
             # It never left green: something passed in front of it. Take the ending back.
             self._seen[(group, OFF)] = [
-                window
-                for window in self._seen.get((group, OFF), [])
-                if moment - window.latest > NEAR_S
+                seen
+                for seen in self._seen.get((group, OFF), [])
+                if moment - seen[0].latest > NEAR_S
             ]
             return
         edge = edge_of(was, now, self._full_head[head])
         if edge is not None:
-            self._note((group, edge), moment)
+            self._note((group, edge), moment, head)
 
-    def state_of(self, target: str, at: datetime) -> tuple[SignalState, datetime | None] | None:
+    def forget(self, head: str) -> None:
+        for change, seen in self._seen.items():
+            self._seen[change] = [(window, heads) for window, heads in seen if heads != {head}]
+
+    def state_of(self, target: str, at: datetime) -> Placed | None:
         group = self._group_of_target.get(target)
         return None if group is None else self.state_of_group(group, at)
 
-    def state_of_group(self, group: str, at: datetime) -> tuple[SignalState, datetime | None]:
+    def state_for_head(self, head: str, at: datetime) -> Placed | None:
+        group = self._group_of_head.get(head)
+        return None if group is None else self.state_of_group(group, at, by_others=True)
+
+    def state_of_group(self, group: str, at: datetime, *, by_others: bool = False) -> Placed:
+        """A group's state at a moment. `by_others` leaves out what its own heads were seen
+        to do, which is how to check them."""
         moment = at.timestamp()
-        ons = self._windows((group, ON), moment)
-        offs = self._windows((group, OFF), moment)
+        leaving_out = group if by_others else None
+        ons = self._windows((group, ON), moment, leaving_out)
+        offs = self._windows((group, OFF), moment, leaving_out)
         amber_s, red_amber_s = (AMBER_S, RED_AMBER_S) if self._full[group] else (0.0, 0.0)
 
-        def answer(state: SignalState, since: float) -> tuple[SignalState, datetime | None]:
-            return state, datetime.fromtimestamp(since, UTC)
+        def answer(state: SignalState, since: float, change: Window) -> Placed:
+            return Placed(
+                state, datetime.fromtimestamp(since, UTC), change.latest - change.earliest
+            )
 
         began = _last(window for window in ons if window.latest <= moment)
         ended = _last(window for window in offs if window.latest <= moment)
@@ -222,16 +299,16 @@ class StageSequenceEstimator:
             # end has been placed later than that.
             length = self._timings.following.get(((group, ON), (group, OFF)))
             if length is None:
-                return SignalState.unknown, None
+                return UNKNOWN
             until = began.earliest + length[0]
             coming = _first(w for w in offs if w.latest > moment and w.earliest >= began.earliest)
             if coming is not None and coming.earliest <= began.latest + length[1]:
                 until = max(until, coming.earliest)
-            return answer(SignalState.green, began.latest) if moment < until else UNKNOWN
+            return answer(SignalState.green, began.latest, began) if moment < until else UNKNOWN
         if ended is None:
             return UNKNOWN
         if amber_s and moment < ended.earliest + amber_s:
-            return answer(SignalState.amber, ended.latest)
+            return answer(SignalState.amber, ended.latest, ended)
         red_from = ended.latest + amber_s
         if moment < red_from:
             return UNKNOWN
@@ -242,50 +319,84 @@ class StageSequenceEstimator:
         coming = _first(window for window in ons if window.latest > moment)
         if coming is not None and (gap is None or coming.earliest <= ended.latest + gap[1]):
             if red_amber_s and coming.latest - red_amber_s <= moment < coming.earliest:
-                return answer(SignalState.red_amber, coming.latest - red_amber_s)
+                return answer(SignalState.red_amber, coming.latest - red_amber_s, coming)
             red_until.append(coming.earliest - red_amber_s)
         if red_until and moment < max(red_until):
-            return answer(SignalState.red, red_from)
+            return answer(SignalState.red, red_from, ended)
         return UNKNOWN
+
+    def loosely_placed(self, around: datetime) -> list[Loose]:
+        """The changes near a moment, of groups with heads, that are worth looking for."""
+        moment = around.timestamp()
+        return [
+            Loose(
+                group,
+                edge,
+                heads,
+                datetime.fromtimestamp(window.earliest, UTC),
+                datetime.fromtimestamp(window.latest, UTC),
+            )
+            for group, heads in self._heads_of_group.items()
+            for edge in (ON, OFF)
+            for window in self._windows((group, edge), moment)
+            if heads and window.latest - window.earliest > LOOSE_S
+        ]
+
+    def found(self, group: str, edge: str, at: datetime) -> None:
+        """Take a change as having been found in the lamps' steps at a moment."""
+        moment = at.timestamp()
+        window = Window(moment - FOUND_WITHIN_S, moment + FOUND_WITHIN_S)
+        self._seen.setdefault((group, edge), []).append((window, {STEPS}))
 
     def placed(self, group: str, edge: str, around: datetime) -> list[Window]:
         """Where the changes seen so far put a group's green starting or ending, near a moment."""
         return self._windows((group, edge), around.timestamp())
 
-    def _note(self, change: Change, moment: float) -> None:
+    def _note(self, change: Change, moment: float, head: str) -> None:
         if self._breaks_the_plan(change, moment):
             self.violations += 1
         seen = self._seen.setdefault(change, [])
-        if seen and moment - seen[-1].latest <= SAME_CHANGE_S:
-            seen[-1] = Window(min(seen[-1].earliest, moment), max(seen[-1].latest, moment))
+        if seen and moment - seen[-1][0].latest <= SAME_CHANGE_S:
+            last, heads = seen[-1]
+            seen[-1] = (
+                Window(min(last.earliest, moment), max(last.latest, moment)),
+                heads | {head},
+            )
         else:
-            seen.append(Window(moment, moment))
-        for windows in self._seen.values():
-            while windows and moment - windows[0].latest > REMEMBER_S:
-                del windows[0]
+            seen.append((Window(moment, moment), {head}))
+        for each in self._seen.values():
+            while each and moment - each[0][0].latest > REMEMBER_S:
+                del each[0]
 
     def _breaks_the_plan(self, change: Change, moment: float) -> bool:
-        for other, windows in self._seen.items():
-            span = self._timings.reach.get((other, change))
-            if other == change or span is None or span[1] - span[0] > FIXED_WIDTH_S:
+        for other, seen in self._seen.items():
+            if other == change:
                 continue
-            for window in windows:
-                expected = window.shifted(span)
-                missed_by = max(expected.earliest - moment, moment - expected.latest)
-                if 0 < missed_by < NEAR_S:
-                    return True
+            for span in self._timings.reach.get((other, change), []):
+                if span[1] - span[0] > FIXED_WIDTH_S:
+                    continue
+                for window, _ in seen:
+                    expected = window.shifted(span)
+                    missed_by = max(expected.earliest - moment, moment - expected.latest)
+                    if 0 < missed_by < NEAR_S:
+                        return True
         return False
 
-    def _windows(self, change: Change, around: float) -> list[Window]:
-        """Every place the changes seen put this one, near a moment, oldest first."""
+    def _windows(
+        self, change: Change, around: float, leaving_out: str | None = None
+    ) -> list[Window]:
+        """Every place the changes seen put this one, near a moment, oldest first.
+
+        `leaving_out` is a group whose own changes are not to count.
+        """
         placed: list[tuple[Window, bool]] = []
-        for seen, windows in self._seen.items():
-            span = self._timings.reach.get((seen, change))
-            if span is None:
+        for other, seen in self._seen.items():
+            if other[0] == leaving_out:
                 continue
-            for window in windows:
-                if abs(window.latest - around) <= REACH_S:
-                    placed.append((window.shifted(span), seen == change))
+            for span in self._timings.reach.get((other, change), []):
+                for window, _ in seen:
+                    if abs(window.latest - around) <= REACH_S:
+                        placed.append((window.shifted(span), other == change))
         placed.sort(key=lambda each: each[0].earliest)
 
         merged: list[tuple[Window, bool]] = []

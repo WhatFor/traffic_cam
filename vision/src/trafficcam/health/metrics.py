@@ -11,7 +11,7 @@ from prometheus_client import (
     ProcessCollector,
     start_http_server,
 )
-from prometheus_client.core import CounterMetricFamily
+from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
 from prometheus_client.registry import Collector
 
 from trafficcam.contracts import Clip, ClipDeleted, Event, Passage, SignalChange, SignalState
@@ -60,6 +60,25 @@ class _PlanViolations(Collector):
         yield family
 
 
+class _DoubtedHeads(Collector):
+    """Which signal heads are not believed where the plan of the signals rules them out."""
+
+    def __init__(self) -> None:
+        self.heads: list[str] = []
+        self.doubted: Callable[[], frozenset[str]] = frozenset
+
+    def collect(self) -> Iterator[GaugeMetricFamily]:
+        family = GaugeMetricFamily(
+            f"{NAMESPACE}_{SUBSYSTEM}_signal_head_doubted",
+            "1 while a head's readings keep contradicting the plan of the signals.",
+            labels=["head"],
+        )
+        doubted = self.doubted()
+        for head in self.heads:
+            family.add_metric([head], float(head in doubted))
+        yield family
+
+
 class Metrics:
     """Counts what goes through the pipeline. Observes frames and receives passages."""
 
@@ -71,6 +90,8 @@ class Metrics:
         self.registry.register(self._dropped)
         self._plan_violations = _PlanViolations()
         self.registry.register(self._plan_violations)
+        self._doubted_heads = _DoubtedHeads()
+        self.registry.register(self._doubted_heads)
         self._frames = Counter("frames", "Frames processed.", **names)
         self._frame_interval = Histogram(
             "frame_interval_seconds",
@@ -128,6 +149,10 @@ class Metrics:
 
     def watch_signal_plan(self, violations: Callable[[], int]) -> None:
         self._plan_violations.count = violations
+
+    def watch_doubted_heads(self, heads: list[str], doubted: Callable[[], frozenset[str]]) -> None:
+        self._doubted_heads.heads = heads
+        self._doubted_heads.doubted = doubted
 
     def watch_clips_folder(self, size: Callable[[], int]) -> None:
         self._clips_bytes.set_function(lambda: float(size()))

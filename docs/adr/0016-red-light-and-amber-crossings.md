@@ -21,7 +21,7 @@ With a state for each stop line (0015), a crossing on red can be flagged. Three 
 - `red_light`: the line was red when crossed, had been red for more than `grace_s` (0.5 s), and was still red when the vehicle went on.
 - `amber_crossing`: the line was amber when crossed, and amber or red when the vehicle went on. `amber_events: false` turns these off.
 
-**Only an observed state counts.** A line whose heads are `unknown`, disagree, or give an inferred red raises nothing.
+**An observed state counts, and since 0022 so does a closely inferred one.** A line whose heads are `unknown` or disagree raises nothing, nor does the south head's red, which is only the absence of its green. A state worked out from the plan of the signals counts if the change that began it is placed to within `inferred_within_s` (1 s); such an event carries `signal_source: inferred`.
 
 **Red-and-amber raises nothing.** It is recorded on the passage like any other state.
 

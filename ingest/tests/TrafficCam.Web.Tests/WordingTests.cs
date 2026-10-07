@@ -13,6 +13,7 @@ public class WordingTests
     [Theory]
     [InlineData("red_light", """{"movement": "west->north", "time_into_red_s": 1.23}""", "west->north, 1.2 s into red")]
     [InlineData("red_light", """{"movement": null, "time_into_red_s": 3.03}""", "3 s into red")]
+    [InlineData("red_light", """{"movement": "west->north", "time_into_red_s": 2.4, "signal_source": "inferred"}""", "west->north, 2.4 s into red, signal inferred")]
     [InlineData("amber_crossing", """{"movement": "west->east", "time_into_amber_s": 0.17}""", "west->east, 0.2 s into amber")]
     [InlineData("box_junction_stop", """{"movement": "north->west", "stationary_s": 6.2, "x": 1100}""", "north->west, stood 6.2 s")]
     [InlineData("banned_turn", """{"movement": "south->west", "turn": "left_from_south", "signals": {}}""", "south->west")]

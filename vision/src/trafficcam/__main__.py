@@ -25,6 +25,7 @@ from trafficcam.pipeline import Pipeline, run
 from trafficcam.signals import Signals
 from trafficcam.signals.estimator import StageSequenceEstimator
 from trafficcam.signals.lamps import LampRoiObserver
+from trafficcam.signals.steps import StepFinder
 from trafficcam.sources import FrameSource
 from trafficcam.speed import SpeedMeter
 from trafficcam.timesync import wait_for_clock_sync
@@ -149,7 +150,10 @@ def main() -> None:
         estimator = StageSequenceEstimator(config) if config.signal_plan else None
         if estimator is not None and outputs.metrics is not None:
             outputs.metrics.watch_signal_plan(lambda: estimator.violations)
-        signals = Signals(config, config_hash, estimator)
+        steps = StepFinder(config) if estimator is not None else None
+        signals = Signals(config, config_hash, estimator, steps)
+        if outputs.metrics is not None:
+            outputs.metrics.watch_doubted_heads(list(config.signal_heads), lambda: signals.doubted)
         speeds = SpeedMeter(config.detectors.speed) if config.detectors.speed else None
         pipeline = Pipeline(
             backend,

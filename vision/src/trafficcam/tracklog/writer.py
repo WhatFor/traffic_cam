@@ -16,6 +16,7 @@ import supervision as sv
 from trafficcam.contracts import SignalState
 from trafficcam.geometry import Observation
 from trafficcam.pipeline import FrameResult
+from trafficcam.sources import Rgb
 from trafficcam.tracklog import SCHEMA, Header, to_record
 
 HOUR_FORMAT = "%Y-%m-%dT%H"
@@ -27,7 +28,9 @@ FLUSH_INTERVAL_S = 1.0
 RETRY_S = 60.0
 CLOSE_TIMEOUT_S = 2.0
 
-_Item = tuple[int, datetime, sv.Detections, Observation, Mapping[str, SignalState]]
+_Item = tuple[
+    int, datetime, sv.Detections, Observation, Mapping[str, SignalState], Mapping[str, Rgb]
+]
 
 
 class TrackLogWriter:
@@ -83,6 +86,7 @@ class TrackLogWriter:
                     result.detections,
                     result.observation,
                     result.signals,
+                    frame.samples,
                 ),
                 block=self._wait_when_full,
             )
@@ -122,12 +126,13 @@ class TrackLogWriter:
         detections: sv.Detections,
         observation: Observation,
         signals: Mapping[str, SignalState],
+        lamps: Mapping[str, Rgb],
     ) -> None:
         hour = timestamp.astimezone(UTC).strftime(HOUR_FORMAT)
         if hour != self._hour:
             self._open(hour, timestamp)
         assert self._file is not None
-        record = to_record(index, timestamp, detections, observation, signals)
+        record = to_record(index, timestamp, detections, observation, signals, lamps)
         self._file.write(record.model_dump_json(by_alias=True) + "\n")
         if time.monotonic() >= self._flush_at:
             self._file.flush()

@@ -143,10 +143,14 @@ def learn(config: SiteConfig, changes: Sequence[HeadChange]) -> None:
     for each in [*own, *fixed, *varying]:
         width, first, second, span, *_ = each
         reach = PlanTimings(SignalPlan(groups=_plan(config).groups, links=chosen)).reach
-        already = reach.get((first, second))
-        wanted = already is None or (
-            each in fixed and already[1] - already[0] > width + IMPLIED_WITHIN_S
-        )
+        # What the links chosen so far already say of this same gap, if anything.
+        already = [
+            other
+            for other in reach.get((first, second), [])
+            if other[0] <= span[1] and other[1] >= span[0]
+        ]
+        looser = all(other[1] - other[0] > width + IMPLIED_WITHIN_S for other in already)
+        wanted = not already or (each in fixed and looser)
         if each in own or wanted:
             link = {"from": _name(first), "to": _name(second), "s": span}
             chosen.append(SignalLink.model_validate(link))
@@ -261,7 +265,7 @@ def evaluate(
         estimator = feed.up_to(at + LOOKS_S[-1])
         how = "read from its heads"
         if truth.of(config.heads_controlling(line), at) is None:
-            state, _ = estimator.state_of(line, datetime.fromtimestamp(at, UTC)) or UNKNOWN
+            state = (estimator.state_of(line, datetime.fromtimestamp(at, UTC)) or UNKNOWN).state
             how = "not known" if state == NOT_KNOWN else f"inferred {state.value}"
         counts.setdefault(line, Counter())[how] += 1
     for line, counted in counts.items():
@@ -288,8 +292,8 @@ def _hidden(
         actual = truth.of(heads, moment)
         if actual is not None:
             estimator = feed.up_to(moment + look)
-            said, _ = estimator.state_of_group(name, datetime.fromtimestamp(moment, UTC))
-            seconds[(actual, said)] += 1
+            said = estimator.state_of_group(name, datetime.fromtimestamp(moment, UTC))
+            seconds[(actual, said.state)] += 1
     return seconds
 
 

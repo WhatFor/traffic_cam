@@ -29,3 +29,4 @@ Per-frame data has two outlets, both local to the Pi and both optional.
 - The tracker's arithmetic is not guaranteed to be identical on the Pi and the PC, so a replay on the PC can differ from the live run in rare borderline cases.
 - With Rerun off there is no picture of what the pipeline sees. The video stream (MediaMTX) is unaffected.
 - The retention period, queue size and directory are constants and a command-line argument, not `site.yaml` settings.
+- Since 2026-10-07 each frame's record also holds the mean colour of every lamp square, to a tenth of a level: what the signal states were read from. Three rounds of work on the lamp reading each had to be done on a few minutes of video caught while the light lasted. It adds about a third to a log's size, some 40 MB an hour.

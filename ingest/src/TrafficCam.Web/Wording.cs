@@ -36,6 +36,10 @@ public static class Wording
             Measure(root, "time_into_red_s", "{0} s into red"),
             Measure(root, "time_into_amber_s", "{0} s into amber"),
             Measure(root, "stationary_s", "stood {0} s"),
+            // Worked out from the plan of the signals, not read from the lamps.
+            root.TryGetProperty("signal_source", out var source) && source.ValueEquals("inferred")
+                ? "signal inferred"
+                : null,
         ];
         var said = string.Join(", ", parts.Where(part => part is not null));
         return said.Length == 0 ? null : said;

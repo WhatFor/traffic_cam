@@ -6,6 +6,7 @@ from typing import Any
 
 from test_geometry import FPS, at, nothing
 from test_passages import CAR, THROUGH, Step, box, gone
+from test_signal_plan import PLAN_SITE
 from test_signals import AMBER, GREEN, RED, RED_AMBER, SIGNAL_SITE, UNKNOWN
 
 from trafficcam.config import SiteConfig
@@ -14,6 +15,7 @@ from trafficcam.detectors.red_light import RedLight
 from trafficcam.geometry import SceneGeometry
 from trafficcam.passages import PassageBuilder
 from trafficcam.signals import Reading, Signals
+from trafficcam.signals.estimator import StageSequenceEstimator
 
 SITE: dict[str, Any] = copy.deepcopy(SIGNAL_SITE)
 SITE["detectors"] = {"red_light": {"grace_s": 0.5}}
@@ -28,7 +30,12 @@ def drive(
     path: Sequence[Step] = THROUGH,
 ) -> tuple[Passage, list[Event]]:
     """One vehicle through the junction, with each head changing state at the given frames."""
-    signals = Signals(config, "sha256:test")
+    estimator = StageSequenceEstimator(config) if config.signal_plan else None
+    signals = Signals(config, "sha256:test", estimator)
+    # What was showing before the vehicle came into view.
+    for head, state, since in sorted(changes, key=lambda change: change[2]):
+        if since < 0:
+            signals.update(at(since), {head: Reading(state, at(since))})
     scene = SceneGeometry(config)
     builder = PassageBuilder(config, "sha256:test", signals)
     detector = RedLight(config, "sha256:test", signals)
@@ -167,3 +174,40 @@ def test_where_the_rear_is_tracked_the_signal_is_read_as_the_front_crossed() -> 
     assert event.type == "amber_crossing"
     assert event.attrs["time_into_amber_s"] == round(3 / FPS, 2)
     assert passage.stopline_crossed_at == at(CROSSED)
+
+
+def plan_config(**red_light: Any) -> SiteConfig:
+    site = copy.deepcopy(PLAN_SITE)
+    site["detectors"] = {"red_light": {"grace_s": 0.5} | red_light}
+    return SiteConfig.model_validate(site)
+
+
+# Neither head on the stop line can be read. The side head went green 3 s before the vehicle
+# came into view, which by the plan puts the stop line's red at 4.9 s before, to within 0.2 s.
+SIDE_WENT_GREEN = (("side", RED, -20 * FPS), ("side", GREEN, -3 * FPS))
+
+
+def test_a_red_worked_out_from_the_plan_raises_an_event_when_it_is_placed_closely() -> None:
+    passage, (event,) = drive(*SIDE_WENT_GREEN, config=plan_config(inferred_within_s=1.0))
+
+    assert (passage.signal_state_at_crossing, passage.signal_source) == (
+        RED,
+        SignalSource.inferred,
+    )
+    assert event.type == "red_light"
+    # Timed from the latest the red can have begun, so it is the least it can be.
+    assert event.attrs == {
+        "line": "stopline",
+        "time_into_red_s": round(4.9 + CROSSED / FPS, 2),
+        "movement": "south->north",
+        "signal_source": "inferred",
+    }
+
+
+def test_a_red_worked_out_from_the_plan_raises_nothing_unless_asked_or_if_loosely_placed() -> None:
+    passage, events = drive(*SIDE_WENT_GREEN, config=plan_config())
+    assert passage.signal_source == SignalSource.inferred
+    assert events == []
+
+    _, events = drive(*SIDE_WENT_GREEN, config=plan_config(inferred_within_s=0.1))
+    assert events == []

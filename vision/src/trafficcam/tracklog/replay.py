@@ -60,7 +60,9 @@ class TrackLogReplay:
                     print("track log was recorded with a different config", file=sys.stderr)
                 continue
             self._current = record
-            yield Frame(index=record.frame, timestamp=record.ts, image=NO_IMAGE)
+            yield Frame(
+                index=record.frame, timestamp=record.ts, image=NO_IMAGE, samples=record.lamps
+            )
 
     def detect(self, frame: Frame) -> sv.Detections:
         return to_detections(self._record_of(frame).detections)

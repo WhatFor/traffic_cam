@@ -17,7 +17,7 @@ from test_pipeline import CONFIG_HASH, DRIVE, DRIVE_AND_GONE, NO_IMAGE, pipeline
 from trafficcam.contracts import SignalState
 from trafficcam.geometry import Observation, SceneGeometry
 from trafficcam.pipeline import FrameResult
-from trafficcam.sources import Frame
+from trafficcam.sources import Frame, Rgb
 from trafficcam.tracklog import FrameRecord, Header
 from trafficcam.tracklog import writer as writer_module
 from trafficcam.tracklog.replay import TrackLogReplay, read_track_log, to_detections
@@ -151,10 +151,11 @@ def test_a_full_queue_drops_and_counts_without_blocking(
         detections: sv.Detections,
         observation: Observation,
         signals: Mapping[str, SignalState],
+        lamps: Mapping[str, Rgb],
     ) -> FrameRecord:
         writing.set()
         release.wait()
-        return to_record(index, timestamp, detections, observation, signals)
+        return to_record(index, timestamp, detections, observation, signals, lamps)
 
     monkeypatch.setattr(writer_module, "to_record", stalled)
     writer = writer_for(tmp_path, max_queued=3)
@@ -278,10 +279,23 @@ def test_signal_states_are_recorded_and_replayed(tmp_path: Path) -> None:
     assert readings[2]["near"].since == HOUR + timedelta(seconds=2)
 
 
+def test_lamp_colours_are_recorded_and_come_back_with_the_replayed_frame(tmp_path: Path) -> None:
+    seen = {"near/red": (84.26, 40.04, 57.0), "near/green": (33.0, 36.5, 45.0)}
+    result = empty_result(0, HOUR)
+    result = dataclasses.replace(result, frame=dataclasses.replace(result.frame, samples=seen))
+    record(tmp_path, [result])
+
+    replay = TrackLogReplay(sorted(tmp_path.iterdir()), CONFIG_HASH)
+    (frame,) = replay.frames()
+
+    # To a tenth of a level.
+    assert frame.samples == {"near/red": (84.3, 40.0, 57.0), "near/green": (33.0, 36.5, 45.0)}
+
+
 def test_a_log_from_before_signals_were_read_replays_with_none(tmp_path: Path) -> None:
     record(tmp_path, [empty_result(0, HOUR)])
     (path,) = tmp_path.iterdir()
-    path.write_text(path.read_text().replace(',"signals":{}', ""))
+    path.write_text(path.read_text().replace(',"signals":{},"lamps":{}', ""))
 
     replay = TrackLogReplay([path], CONFIG_HASH)
 
