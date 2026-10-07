@@ -1,19 +1,36 @@
 @model ClipEntry
 @{
-    // Opens the clip a little before the moment, to see it coming.
-    var from = Math.Max(0, Model.OffsetSeconds - ClipModel.LeadInSeconds);
+    // Opens the clip a little before the moment, to see it coming. A manual clip's moment is
+    // when it was asked for, which for a quick clip is its last frame: that one opens at the start.
+    var from = Model.Type == Wording.Manual ? 0 : Math.Max(0, Model.OffsetSeconds - ClipModel.LeadInSeconds);
 }
-<li>
+<li class="@(Model.Viewed ? "viewed" : null)">
     <a href="/clips/@Model.ClipId?t=@from.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)">
         @if (Model.HasStill)
         {
             <img src="/clips/@Model.ClipId/still" alt="" loading="lazy" width="2028" height="1520">
         }
-        <time datetime="@Model.At.UtcDateTime.ToString("o")">@Wording.Utc(Model.At)</time>
-        @if (Model.Detail is not null)
+        <span class="when">
+            @if (!Model.Viewed)
+            {
+                <span class="new" title="Not viewed yet"></span>
+            }
+            <time datetime="@Model.At.UtcDateTime.ToString("o")">@Wording.Utc(Model.At)</time>
+        </span>
+        @if ((Model.Description ?? Model.Detail) is { } said)
         {
-            <span class="detail">@Model.Detail</span>
+            <span class="detail">@said</span>
         }
-        <span class="length">@Wording.Length(Model.LengthSeconds)</span>
+        <span class="length">
+            @Wording.Length(Model.LengthSeconds)
+            @if (Model.Archived)
+            {
+                <span class="tag">archived</span>
+            }
+            @if (Model.FalsePositive)
+            {
+                <span class="tag">false positive</span>
+            }
+        </span>
     </a>
 </li>

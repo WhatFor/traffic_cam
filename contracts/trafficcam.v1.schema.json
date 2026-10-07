@@ -148,9 +148,23 @@
         "id": { "type": "string", "format": "uuid" },
         "ts": { "type": "string", "format": "date-time" },
         "camera": { "type": "string" },
-        "reason": { "type": "string" }
+        "reason": { "type": "string" },
+        "pre_s": { "description": "Seconds to keep before the moment it arrives. Absent, the site's default.", "type": ["number", "null"], "minimum": 0 },
+        "post_s": { "description": "Seconds to keep after it. Absent, the site's default.", "type": ["number", "null"], "minimum": 0 }
       },
       "required": ["schema", "id", "ts", "camera", "reason"]
+    },
+    "ClipKeep": {
+      "description": "Keep a clip longer, or not. `id` is the clip id. Topic: trafficcam/v1/cmd/keep/{id}, retained.",
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "const": "clip_keep/1" },
+        "id": { "type": "string", "format": "uuid" },
+        "ts": { "type": "string", "format": "date-time" },
+        "camera": { "type": "string" },
+        "keep": { "type": "boolean" }
+      },
+      "required": ["schema", "id", "ts", "camera", "keep"]
     },
     "Status": {
       "description": "Vision presence; 'offline' is the last will. Topic: trafficcam/v1/status/vision, retained.",

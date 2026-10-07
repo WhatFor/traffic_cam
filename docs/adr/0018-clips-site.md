@@ -1,6 +1,6 @@
 # 0018. The clips site: a read-only web app of its own
 
-Date: 2026-10-06. Status: Accepted.
+Date: 2026-10-06. Status: Accepted. No longer read-only since 0021: it keeps marks on clips and asks vision for things.
 
 ## Context
 
@@ -24,7 +24,7 @@ An entry is one trigger of one clip, so a clip recorded for two things is in two
 
 **Files are found by clip id only.** The path is the one in the clip's row, and it is served only if it resolves to a file inside the clips folder. Nothing in a request is ever used as a path. A deleted clip's files are not served and its page says when it went.
 
-**Read-only twice over.** The database connection is opened with `default_transaction_read_only=on`, and the clips folder is mounted read-only, at the same path as on the host so the paths in the database need no translation.
+**Read-only twice over.** The database connection is opened with `default_transaction_read_only=on`, and the clips folder is mounted read-only, at the same path as on the host so the paths in the database need no translation. Since 0021 this holds for the pages' reading and for the folder; the marks on a clip are written through a second connection used by one class.
 
 **No login.** The site is on port 8081 of the Pi, reachable from the local network and the tailnet, and from nowhere else: nothing is forwarded on the router.
 

@@ -16,7 +16,39 @@ else
            src="/clips/@clip.Id/video#t=@Model.From.ToString("0.#", invariant)"></video>
 }
 <h1><time datetime="@clip.StartedAt.UtcDateTime.ToString("o")">@Wording.Utc(clip.StartedAt)</time></h1>
-<p class="detail">@Wording.Length(clip.LengthSeconds), @((clip.Bytes / 1e6).ToString("0.#", invariant)) MB</p>
+<p class="detail">
+    @Wording.Length(clip.LengthSeconds), @((clip.Bytes / 1e6).ToString("0.#", invariant)) MB
+    @if (clip.Archived)
+    {
+        <span class="tag">archived</span>
+    }
+    @if (clip.FalsePositive)
+    {
+        <span class="tag">false positive</span>
+    }
+</p>
+@if (clip.DeletedAt is null)
+{
+    <form method="post" asp-page-handler="Describe" class="describe">
+        <input name="description" value="@clip.Description" maxlength="@ClipMarks.DescriptionLength"
+               placeholder="Describe this clip" aria-label="Description">
+        <button>Save</button>
+    </form>
+    <div class="actions">
+        <form method="post" asp-page-handler="Archive">
+            <input type="hidden" name="on" value="@(clip.Archived ? "false" : "true")">
+            <button>@(clip.Archived ? "Unarchive" : "Archive")</button>
+        </form>
+        <form method="post" asp-page-handler="FalsePositive">
+            <input type="hidden" name="on" value="@(clip.FalsePositive ? "false" : "true")">
+            <button>@(clip.FalsePositive ? "Not a false positive" : "False positive")</button>
+        </form>
+    </div>
+}
+else if (clip.Description is not null)
+{
+    <p>@clip.Description</p>
+}
 <table>
     <thead>
         <tr><th>What</th><th>When</th><th>In the clip</th><th>Detail</th></tr>

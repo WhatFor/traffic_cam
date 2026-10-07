@@ -1,6 +1,11 @@
+using System.Buffers;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using MQTTnet;
+using MQTTnet.Protocol;
 using Npgsql;
 using TrafficCam.Contracts;
 using TrafficCam.Ingest.Database;
@@ -23,7 +28,7 @@ sealed class Site : IAsyncDisposable
     readonly NpgsqlDataSource source;
     readonly RecordStore store;
 
-    Site(TrafficCam.Ingest.DatabaseOptions database)
+    Site(TrafficCam.Ingest.DatabaseOptions database, int brokerPort)
     {
         Root = Directory.CreateTempSubdirectory("trafficcam-clips-").FullName;
         source = NpgsqlDataSource.Create(database.ConnectionString);
@@ -31,9 +36,13 @@ sealed class Site : IAsyncDisposable
         factory = new WebApplicationFactory<ClipDirectory>().WithWebHostBuilder(builder => builder
             .UseSetting("Database:Port", database.Port.ToString())
             .UseSetting("Database:Name", database.Name)
+            .UseSetting("Mqtt:Port", brokerPort.ToString())
+            .UseSetting("Camera", Camera)
             .UseSetting("ClipsRoot", Root));
         Client = factory.CreateClient();
     }
+
+    public const string Camera = "junction-1";
 
     public string Root { get; }
     public HttpClient Client { get; }
@@ -41,10 +50,31 @@ sealed class Site : IAsyncDisposable
     /// <summary>What every test clip's video file holds.</summary>
     public static byte[] Video { get; } = [.. Enumerable.Range(0, 1000).Select(index => (byte)index)];
 
-    public static async Task<Site> StartAsync(Servers servers)
+    /// <param name="brokerPort">Where the site looks for the broker, if not where the tests' broker is.</param>
+    public static async Task<Site> StartAsync(Servers servers, int? brokerPort = null)
     {
         Assert.SkipUnless(servers.Available, "postgres or mosquitto is not installed");
-        return new Site(await servers.CreateDatabaseAsync());
+        return new Site(await servers.CreateDatabaseAsync(), brokerPort ?? servers.BrokerPort);
+    }
+
+    /// <summary>Posts a form as a browser would, with the token a page of the site gave it.</summary>
+    public async Task<HttpResponseMessage> PostAsync(string action, params (string Name, string Value)[] fields)
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var page = await Client.GetStringAsync("/", cancellation);
+        var token = Regex.Match(page, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"").Groups[1].Value;
+        var form = fields.Append(("__RequestVerificationToken", token))
+            .Select(field => KeyValuePair.Create(field.Item1, field.Item2));
+        return await Client.PostAsync(action, new FormUrlEncodedContent(form), cancellation);
+    }
+
+    /// <summary>The value of one column of a clip's row.</summary>
+    public async Task<object?> ColumnAsync(Guid clip, string column)
+    {
+        await using var command = source.CreateCommand($"SELECT {column} FROM clips WHERE id = $1");
+        command.Parameters.AddWithValue(clip);
+        var value = await command.ExecuteScalarAsync(TestContext.Current.CancellationToken);
+        return value is DBNull ? null : value;
     }
 
     /// <summary>Stores a clip the way ingest does, and writes its files unless a path is given.</summary>
@@ -114,4 +144,42 @@ sealed class Site : IAsyncDisposable
     }
 
     static string Stamp(DateTimeOffset at) => at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'");
+}
+
+/// <summary>Hears what is published to the broker on one topic, including what is retained there.</summary>
+sealed class Listener : IAsyncDisposable
+{
+    static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
+    readonly IMqttClient client = new MqttClientFactory().CreateMqttClient();
+    readonly Channel<JsonNode> heard = Channel.CreateUnbounded<JsonNode>();
+
+    public static async Task<Listener> StartAsync(Servers servers, string topic)
+    {
+        var listener = new Listener();
+        listener.client.ApplicationMessageReceivedAsync += message =>
+        {
+            var payload = message.ApplicationMessage.Payload.ToArray();
+            return payload.Length == 0
+                ? Task.CompletedTask
+                : listener.heard.Writer.WriteAsync(JsonNode.Parse(payload)!).AsTask();
+        };
+        var cancellation = TestContext.Current.CancellationToken;
+        await listener.client.ConnectAsync(
+            new MqttClientOptionsBuilder().WithTcpServer("127.0.0.1", servers.BrokerPort).Build(), cancellation);
+        await listener.client.SubscribeAsync(topic, MqttQualityOfServiceLevel.AtLeastOnce, cancellation);
+        return listener;
+    }
+
+    public async Task<JsonNode> NextAsync()
+    {
+        using var patience = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        patience.CancelAfter(Patience);
+        return await heard.Reader.ReadAsync(patience.Token);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await client.DisconnectAsync();
+        client.Dispose();
+    }
 }

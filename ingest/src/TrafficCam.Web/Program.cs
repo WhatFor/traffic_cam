@@ -23,8 +23,10 @@ builder.Logging.AddSimpleConsole(console => console.SingleLine = true);
 builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 builder.Services.AddSingleton(services => services.GetRequiredService<IConfiguration>().Get<WebOptions>() ?? new WebOptions());
 builder.Services.AddSingleton(services =>
-    NpgsqlDataSource.Create(services.GetRequiredService<WebOptions>().Database.ConnectionString));
+    NpgsqlDataSource.Create(services.GetRequiredService<WebOptions>().Database.ReadOnlyConnectionString));
 builder.Services.AddSingleton<ClipDirectory>();
+builder.Services.AddSingleton<ClipMarks>();
+builder.Services.AddSingleton<VisionLink>();
 builder.Services.AddRazorPages();
 
 var app = builder.Build();

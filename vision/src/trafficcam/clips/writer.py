@@ -66,7 +66,7 @@ def save_still(clip: Path, offset_s: float, still: Path) -> None:
     """Save the frame `offset_s` into the clip as a JPEG, at the clip's own size."""
     with av.open(str(clip)) as container:
         # Lands on the keyframe before the moment; decode forward from there.
-        container.seek(int(offset_s / av.time_base))
+        container.seek(int(offset_s * av.time_base))
         chosen = None
         for frame in container.decode(video=0):
             chosen = frame

@@ -111,8 +111,9 @@ services:
       start_period: 60s
       start_interval: 5s
 
-  # The clips site: lists and plays what is in /mnt/data/clips. Read-only, and open to
-  # the local network without a login. Published by `just deploy` into ./web, as ingest is.
+  # The clips site: lists and plays what is in /mnt/data/clips, and keeps what is said about
+  # each clip. Open to the local network without a login. It never writes to the clips folder;
+  # it asks vision over the broker. Published by `just deploy` into ./web, as ingest is.
   web:
     <<: *service
     image: mcr.microsoft.com/dotnet/aspnet:10.0.12
@@ -122,11 +123,16 @@ services:
     depends_on:
       # Ingest creates the tables this reads.
       ingest: { condition: service_healthy }
+      mosquitto: { condition: service_healthy }
     ports:
       - "8081:8080"
     environment:
       Database__Host: timescaledb
       Database__Password: ${POSTGRES_PASSWORD:?set it in deploy/.env}
+      Mqtt__Host: mosquitto
+      Mqtt__Password: ${MQTT_PASSWORD:?set it in deploy/.env}
+      # camera.id in config/site.yaml: vision ignores a request made for any other camera.
+      Camera: junction-1
     volumes:
       - ./web:/app:ro
       # At the same path as on the host, which is the path the database has for each clip.

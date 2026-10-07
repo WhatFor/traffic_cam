@@ -214,7 +214,8 @@ Three contracts hold the system together: MQTT payloads between vision and inges
 | `trafficcam/v1/signals/{head_id}` | 1 | Yes | Signal state change | vision → ingest, dashboards |
 | `trafficcam/v1/clips/{clip_id}` | 1 | No | Clip finished: path, start, end, keyframe, and what triggered it | vision → ingest, notifier |
 | `trafficcam/v1/clips/{clip_id}/deleted` | 1 | No | Clip files deleted by retention | vision → ingest |
-| `trafficcam/v1/cmd/clip` | 1 | No | Manual clip trigger with a reason | you or tools → vision |
+| `trafficcam/v1/cmd/clip` | 1 | No | Manual clip trigger with a reason, and optionally how far back and forward to reach | you, tools or the clips site → vision |
+| `trafficcam/v1/cmd/keep/{clip_id}` | 1 | Yes | Keep a clip past the usual retention, or stop keeping it | clips site → vision |
 | `trafficcam/v1/status/vision` | 1 | Yes | `online` / `offline` via MQTT last will | vision → monitoring |
 
 Per-frame tracks never go on MQTT; they are too chatty. They go to optional local track logs (see Testing). Ingest uses a persistent session, so events queue in Mosquitto while it restarts.
@@ -275,7 +276,9 @@ CREATE TABLE clips (
   id uuid PRIMARY KEY, camera text, event_id uuid, triggers jsonb NOT NULL,
   path text NOT NULL, keyframe_path text,
   started_at timestamptz, ended_at timestamptz, closed_at timestamptz,
-  bytes bigint, config_hash text, deleted_at timestamptz
+  bytes bigint, config_hash text, deleted_at timestamptz,
+  -- written by the clips site, not by ingest
+  viewed_at timestamptz, archived_at timestamptz, false_positive_at timestamptz, description text
 );
 ```
 
@@ -323,6 +326,7 @@ clips:
   max_s: 300
   retention_days: 30
   max_gb: 200
+  kept_days: 183        # for a clip marked to be kept
   events:               # event types that trigger a clip, with their own lengths
     red_light: { pre_s: 5, post_s: 15 }
 ```
@@ -459,7 +463,8 @@ One software H.264 encode of the main stream feeds both a rolling buffer for cli
 - Save a still frame from the event moment as `<clip_id>.jpg`, for emails, and the clip's record as `<clip_id>.json`.
 - When the file is closed, publish `trafficcam/v1/clips/<clip_id>` with path, start, end, still-frame path and the list of triggers: what each was and when it happened.
 - **Manual trigger**: an MQTT message on `trafficcam/v1/cmd/clip`, wrapped as `just clip "reason"`. Use it to test the whole chain.
-- **Retention**: vision deletes clips older than `retention_days` or, oldest first, when the folder exceeds `max_gb`, and publishes each deletion; ingest sets `clips.deleted_at`.
+- **Retention**: vision deletes clips older than `retention_days` or, oldest first, when the folder exceeds `max_gb`, and publishes each deletion; ingest sets `clips.deleted_at`. A clip marked as a false positive on the clips site is kept for `kept_days` and is not deleted to make room (ADR 0021).
+- **Quick clip**: a button on the clips site saves the last 90 s, the whole buffer, as a manual clip.
 
 ### Live view
 

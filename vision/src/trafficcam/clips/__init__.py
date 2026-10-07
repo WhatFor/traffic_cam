@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol
 
-from trafficcam.contracts import Clip, ClipCommand, ClipDeleted, Event
+from trafficcam.contracts import Clip, ClipCommand, ClipDeleted, ClipKeep, Event
 
 ClipRecord = Clip | ClipDeleted
 
@@ -90,6 +90,10 @@ class ClipRecorder(Protocol):
         """Record a clip because somebody asked."""
         ...
 
+    def keep(self, keep: ClipKeep) -> None:
+        """Mark a clip to outlast the usual retention, or take the mark off."""
+        ...
+
     def drain(self) -> list[ClipRecord]:
         """Clips finished, and clips deleted, since the last call."""
         ...
@@ -104,6 +108,9 @@ class NullRecorder:
         return event
 
     def command(self, command: ClipCommand) -> None:
+        pass
+
+    def keep(self, keep: ClipKeep) -> None:
         pass
 
     def drain(self) -> list[ClipRecord]:

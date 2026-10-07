@@ -15,6 +15,7 @@ from trafficcam.contracts import (
     Clip,
     ClipCommand,
     ClipDeleted,
+    ClipKeep,
     Event,
     Passage,
     SignalChange,
@@ -27,6 +28,7 @@ EVENTS_TOPIC = "trafficcam/v1/events"  # followed by the event's type
 SIGNALS_TOPIC = "trafficcam/v1/signals"  # followed by the head's name
 CLIPS_TOPIC = "trafficcam/v1/clips"  # followed by the clip's id, and "/deleted" once it is gone
 CLIP_COMMAND_TOPIC = "trafficcam/v1/cmd/clip"
+CLIP_KEEP_TOPIC = "trafficcam/v1/cmd/keep"  # followed by the clip's id; retained
 STATUS_TOPIC = "trafficcam/v1/status/vision"
 USERNAME = "trafficcam"
 QOS = 1
@@ -42,8 +44,8 @@ Record = Passage | Event | SignalChange | Clip | ClipDeleted
 class MqttSink:
     """Publishes without ever blocking the caller: paho's own thread does the network I/O.
 
-    It also listens for clip commands, and hands each one for this camera to
-    `on_clip_command`, on paho's thread.
+    It also listens for clip commands and for which clips to keep, and hands each one for
+    this camera to `on_clip_command` or `on_clip_keep`, on paho's thread.
     """
 
     def __init__(
@@ -55,9 +57,11 @@ class MqttSink:
         camera: str,
         max_queued: int = MAX_QUEUED,
         on_clip_command: Callable[[ClipCommand], None] | None = None,
+        on_clip_keep: Callable[[ClipKeep], None] | None = None,
     ) -> None:
         self._camera = camera
         self._on_clip_command = on_clip_command
+        self._on_clip_keep = on_clip_keep
         self.dropped = 0
         self._client = mqtt.Client(
             CallbackAPIVersion.VERSION2,
@@ -92,6 +96,8 @@ class MqttSink:
 
     def clip_deleted(self, deleted: ClipDeleted) -> None:
         self._publish(f"{CLIPS_TOPIC}/{deleted.id}/deleted", deleted)
+        # An empty retained payload removes whatever was retained: nothing is left to keep.
+        self._client.publish(f"{CLIP_KEEP_TOPIC}/{deleted.id}", None, qos=QOS, retain=True)
 
     def _publish(self, topic: str, record: Record, retain: bool = False) -> None:
         info = self._client.publish(
@@ -128,16 +134,25 @@ class MqttSink:
         # acted on when it comes back.
         if self._on_clip_command is not None:
             client.subscribe(CLIP_COMMAND_TOPIC, qos=QOS)
+        # These are retained, so every clip to be kept is told again on each connection.
+        if self._on_clip_keep is not None:
+            client.subscribe(f"{CLIP_KEEP_TOPIC}/+", qos=QOS)
 
     def _on_message(self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
+        if not message.payload:
+            return  # a retained message being removed
         try:
-            command = ClipCommand.model_validate_json(message.payload)
+            if message.topic == CLIP_COMMAND_TOPIC:
+                command = ClipCommand.model_validate_json(message.payload)
+                if command.camera == self._camera and self._on_clip_command is not None:
+                    print(f"clip asked for: {command.reason}", flush=True)
+                    self._on_clip_command(command)
+            else:
+                keep = ClipKeep.model_validate_json(message.payload)
+                if keep.camera == self._camera and self._on_clip_keep is not None:
+                    self._on_clip_keep(keep)
         except ValidationError as error:
-            print(f"invalid clip command: {error}", flush=True)
-            return
-        if command.camera == self._camera and self._on_clip_command is not None:
-            print(f"clip asked for: {command.reason}", flush=True)
-            self._on_clip_command(command)
+            print(f"invalid message on {message.topic}: {error}", flush=True)
 
     def _status(self, state: VisionState) -> str:
         status = Status.model_validate(

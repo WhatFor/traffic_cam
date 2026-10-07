@@ -11,10 +11,10 @@ from av.error import FFmpegError
 
 from trafficcam.clips import ClipRecord, PacketRing
 from trafficcam.clips.plan import ClipPlan, PlannedClip
-from trafficcam.clips.retention import day_directory, prune
+from trafficcam.clips.retention import day_directory, mark_kept, prune
 from trafficcam.clips.writer import ClipFile, VideoStream, save_still
 from trafficcam.config import Clips
-from trafficcam.contracts import Clip, ClipCommand, ClipDeleted, ClipTrigger, Event
+from trafficcam.contracts import Clip, ClipCommand, ClipDeleted, ClipKeep, ClipTrigger, Event
 
 MANUAL = "manual"
 POLL_S = 0.25
@@ -31,7 +31,7 @@ class RingBufferRecorder:
     Triggers only note what is wanted and return. A thread does the rest: it copies packets
     from the ring into each open clip until the clip's end has passed, then saves a still
     frame and the clip's record beside it, and applies retention. Finished clips and
-    deletions wait in a queue for `drain`.
+    deletions wait in a queue for `drain`. The thread also marks the clips it is told to keep.
 
     The directory must already exist. A clip that cannot be written is dropped and counted.
     """
@@ -58,6 +58,7 @@ class RingBufferRecorder:
         self._files: dict[uuid.UUID, ClipFile] = {}
         self._cursors: dict[uuid.UUID, int] = {}
         self._records: queue.SimpleQueue[ClipRecord] = queue.SimpleQueue()
+        self._keeps: queue.SimpleQueue[ClipKeep] = queue.SimpleQueue()
         self._prune_at: datetime | None = None
         self.written = 0
         self.failed = 0
@@ -71,13 +72,22 @@ class RingBufferRecorder:
         if not self._settings.wants(event.type, event.attrs):
             return event
         trigger = ClipTrigger(type=event.type, at=event.ts, event_id=event.id, reason=None)
-        return event.model_copy(update={"clip_id": self._trigger(trigger, event.type)})
+        clip_id = self._trigger(trigger, *self._settings.lengths(event.type))
+        return event.model_copy(update={"clip_id": clip_id})
 
     def command(self, command: ClipCommand) -> None:
+        pre_s, post_s = self._settings.lengths()
+        # No further back than the ring holds, and no longer than a clip may be.
+        if command.pre_s is not None:
+            pre_s = min(command.pre_s, self._settings.buffer_s, self._settings.max_s)
+        if command.post_s is not None:
+            post_s = max(0.0, min(command.post_s, self._settings.max_s - pre_s))
         # Its arrival, not the sender's clock, is the moment that was asked about.
-        self._trigger(
-            ClipTrigger(type=MANUAL, at=self._now(), event_id=None, reason=command.reason)
-        )
+        trigger = ClipTrigger(type=MANUAL, at=self._now(), event_id=None, reason=command.reason)
+        self._trigger(trigger, pre_s, post_s)
+
+    def keep(self, keep: ClipKeep) -> None:
+        self._keeps.put(keep)
 
     def drain(self) -> list[ClipRecord]:
         records = []
@@ -99,6 +109,7 @@ class RingBufferRecorder:
             clips = list(self._plan.open)
         for clip in clips:
             self._guarded(clip, self._advance)
+        self._mark_kept()
         if self._prune_at is not None and self._now() >= self._prune_at:
             self._prune()
 
@@ -109,9 +120,17 @@ class RingBufferRecorder:
         for clip in clips:
             self._guarded(clip, lambda clip: self._advance(clip, cut_short=True))
 
-    def _trigger(self, trigger: ClipTrigger, event_type: str | None = None) -> uuid.UUID:
+    def _trigger(self, trigger: ClipTrigger, pre_s: float, post_s: float) -> uuid.UUID:
         with self._lock:
-            return self._plan.add(trigger, *self._settings.lengths(event_type)).id
+            return self._plan.add(trigger, pre_s, post_s).id
+
+    def _mark_kept(self) -> None:
+        while not self._keeps.empty():
+            keep = self._keeps.get()
+            try:
+                mark_kept(self._settings.dir, keep.id, keep.keep)
+            except OSError as error:
+                print(f"clip {keep.id}: not marked: {error}", file=sys.stderr, flush=True)
 
     def _run(self) -> None:
         while not self._stopping.wait(POLL_S):
@@ -222,6 +241,7 @@ class RingBufferRecorder:
                 now,
                 timedelta(days=self._settings.retention_days),
                 self._settings.max_gb * GIGABYTE,
+                kept_for=timedelta(days=self._settings.kept_days),
                 unfinished=unfinished,
             )
         except OSError as error:

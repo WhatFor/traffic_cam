@@ -12,10 +12,23 @@ body {
 }
 
 header {
+    align-items: center;
     border-bottom: 1px solid var(--line);
-    font-weight: 600;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
     margin-bottom: 1rem;
     padding: 0.75rem 0;
+}
+
+header > a {
+    font-weight: 600;
+    margin-right: auto;
+}
+
+button,
+input {
+    font: inherit;
 }
 
 a {
@@ -67,9 +80,48 @@ h2 {
     width: 100%;
 }
 
-.entries time {
+.entries .when {
     font-weight: 600;
     margin-top: 0.25rem;
+}
+
+/* A clip that has been opened fades back; one that has not carries a red dot. */
+.entries .viewed img {
+    filter: grayscale(1);
+    opacity: 0.5;
+}
+
+.new {
+    background: #d92626;
+    border-radius: 50%;
+    display: inline-block;
+    height: 0.6rem;
+    margin-right: 0.15rem;
+    width: 0.6rem;
+}
+
+.tag {
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    font-size: 0.8rem;
+    padding: 0 0.3rem;
+}
+
+.notice {
+    border-left: 3px solid var(--line);
+    padding-left: 0.75rem;
+}
+
+.describe,
+.actions {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+}
+
+.describe input {
+    flex: 1;
+    max-width: 40rem;
 }
 
 .detail,

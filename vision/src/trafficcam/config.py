@@ -221,6 +221,8 @@ class Clips(_Section):
     max_s: PositiveFloat = 300
     retention_days: PositiveInt
     max_gb: PositiveFloat
+    # A clip marked to be kept lasts this long instead, and is not deleted to make room.
+    kept_days: PositiveInt
     # The event types that trigger a clip, each with its own lengths if it gives them.
     events: dict[str, ClipLength] = {}
 

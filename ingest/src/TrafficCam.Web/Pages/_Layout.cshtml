@@ -7,7 +7,20 @@
     <link rel="stylesheet" href="~/site.css" asp-append-version="true">
 </head>
 <body>
-    <header><a href="/">Traffic camera clips</a></header>
+    <header>
+        <a href="/">Traffic camera clips</a>
+        <form method="post" asp-page="/Index" asp-page-handler="Archived">
+            <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)">
+            <label>
+                <input type="checkbox" name="include" value="true" checked="@Context.Request.IncludeArchived()" data-submit>
+                Include archived clips
+            </label>
+            <noscript><button>Apply</button></noscript>
+        </form>
+        <form method="post" asp-page="/Index" asp-page-handler="QuickClip">
+            <button title="Save what the camera has just seen as a clip">Quick clip</button>
+        </form>
+    </header>
     <main>
         @RenderBody()
     </main>

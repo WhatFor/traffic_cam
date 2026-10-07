@@ -13,3 +13,14 @@ for (const button of document.querySelectorAll("button[data-seek]")) {
         video.play();
     });
 }
+
+// The "include archived clips" box applies as soon as it is changed.
+for (const box of document.querySelectorAll("input[data-submit]")) {
+    box.addEventListener("change", () => box.form.submit());
+}
+
+// A page waiting for a clip that was just asked for looks again until it is there.
+const waiting = document.querySelector("[data-reload-after]");
+if (waiting) {
+    setTimeout(() => location.reload(), Number(waiting.dataset.reloadAfter) * 1000);
+}

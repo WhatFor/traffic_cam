@@ -31,9 +31,10 @@ public class SiteTests(Servers servers)
         Assert.True(redLight.IndexOf(late.ToString()) < redLight.IndexOf(early.ToString()), "newest first");
         Assert.Contains("west-&gt;north, 1.2 s into red", redLight);
         Assert.Contains("All 2", redLight);
-        // A clip recorded for two things is under both, and each link opens it just before its own moment.
+        // A clip recorded for two things is under both. An event's link opens it just before the
+        // moment; a manual clip's moment is when it was asked for, so that link opens it at the start.
         var manual = Column(html, "Manual");
-        Assert.Contains($"/clips/{late}?t=7", manual);
+        Assert.Contains($"/clips/{late}?t=0", manual);
         Assert.Contains("to see", manual);
         Assert.DoesNotContain(early.ToString(), manual);
         Assert.Contains($"/clips/{late}?t=3", redLight);
@@ -159,6 +160,175 @@ public class SiteTests(Servers servers)
         await using var site = await Site.StartAsync(servers);
 
         Assert.Equal(HttpStatusCode.OK, await StatusAsync(site, "/healthz"));
+    }
+
+    [Fact]
+    public async Task An_archived_clip_is_listed_only_when_asked_for()
+    {
+        await using var site = await Site.StartAsync(servers);
+        var kept = await site.AddClipAsync(Noon, [new Trigger("red_light", 5)]);
+        var archived = await site.AddClipAsync(Noon.AddHours(1), [new Trigger("red_light", 5)]);
+
+        using var page = await site.PostAsync($"/clips/{archived}?handler=Archive", ("on", "true"));
+        Assert.Contains("Unarchive", await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var index = await site.Client.GetStringAsync("/", TestContext.Current.CancellationToken);
+        var list = await site.Client.GetStringAsync("/types/red_light", TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(archived.ToString(), index);
+        Assert.Contains("All 1", index);
+        Assert.DoesNotContain(archived.ToString(), list);
+        Assert.Contains(kept.ToString(), list);
+
+        // The choice is kept in the browser, and holds on every page.
+        using var included = await site.PostAsync("/?handler=Archived", ("include", "true"), ("returnUrl", "/types/red_light"));
+        var all = await included.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("/types/red_light", included.RequestMessage?.RequestUri?.PathAndQuery);
+        Assert.Contains(archived.ToString(), all);
+        Assert.Contains("<span class=\"tag\">archived</span>", all);
+        Assert.Contains("All 2", await site.Client.GetStringAsync("/", TestContext.Current.CancellationToken));
+
+        using var excluded = await site.PostAsync("/?handler=Archived", ("returnUrl", "https://elsewhere.example/"));
+        Assert.Equal("/", excluded.RequestMessage?.RequestUri?.PathAndQuery);
+        Assert.Contains("All 1", await excluded.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+        await site.PostAsync($"/clips/{archived}?handler=Archive", ("on", "false"));
+        Assert.Contains("All 2", await site.Client.GetStringAsync("/", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Opening_a_clip_marks_it_viewed()
+    {
+        await using var site = await Site.StartAsync(servers);
+        var id = await site.AddClipAsync(Noon, [new Trigger("red_light", 5)]);
+
+        var before = await site.Client.GetStringAsync("/types/red_light", TestContext.Current.CancellationToken);
+        await site.Client.GetStringAsync($"/clips/{id}", TestContext.Current.CancellationToken);
+        var after = await site.Client.GetStringAsync("/types/red_light", TestContext.Current.CancellationToken);
+
+        Assert.Contains("<li>", before);
+        Assert.Contains("class=\"new\"", before);
+        Assert.Contains("<li class=\"viewed\">", after);
+        Assert.DoesNotContain("class=\"new\"", after);
+    }
+
+    [Fact]
+    public async Task A_description_takes_the_place_of_the_detail_in_a_list()
+    {
+        await using var site = await Site.StartAsync(servers);
+        var id = await site.AddClipAsync(Noon, [new Trigger("red_light", 5, Attrs: RedLightAttrs)]);
+
+        using var described = await site.PostAsync(
+            $"/clips/{id}?handler=Describe", ("description", "  A lorry, well after the light <changed>  "));
+        var page = await described.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var list = await site.Client.GetStringAsync("/", TestContext.Current.CancellationToken);
+
+        Assert.Contains("value=\"A lorry, well after the light &lt;changed&gt;\"", page);
+        // The page still says what the event recorded.
+        Assert.Contains("west-&gt;north, 1.2 s into red", page);
+        Assert.Contains("A lorry, well after the light &lt;changed&gt;", list);
+        Assert.DoesNotContain("1.2 s into red", list);
+
+        await site.PostAsync($"/clips/{id}?handler=Describe", ("description", " "));
+        Assert.Contains("1.2 s into red", await site.Client.GetStringAsync("/", TestContext.Current.CancellationToken));
+        Assert.Null(await site.ColumnAsync(id, "description"));
+    }
+
+    [Fact]
+    public async Task A_false_positive_is_marked_and_vision_is_told_to_keep_it()
+    {
+        await using var site = await Site.StartAsync(servers);
+        var id = await site.AddClipAsync(Noon, [new Trigger("red_light", 5)]);
+
+        using var marked = await site.PostAsync($"/clips/{id}?handler=FalsePositive", ("on", "true"));
+        var page = await marked.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("<span class=\"tag\">false positive</span>", page);
+        Assert.Contains("Not a false positive", page);
+        Assert.Contains("<span class=\"tag\">false positive</span>", await site.Client.GetStringAsync("/", TestContext.Current.CancellationToken));
+        // Retained: it is there for whoever subscribes later, as vision does when it starts.
+        await using (var listener = await Listener.StartAsync(servers, VisionLink.ClipKeepTopic + id))
+        {
+            var keep = await listener.NextAsync();
+            Assert.Equal("clip_keep/1", (string?)keep["schema"]);
+            Assert.Equal(id.ToString(), (string?)keep["id"]);
+            Assert.Equal(Site.Camera, (string?)keep["camera"]);
+            Assert.True((bool?)keep["keep"]);
+        }
+
+        await site.PostAsync($"/clips/{id}?handler=FalsePositive", ("on", "false"));
+
+        Assert.Null(await site.ColumnAsync(id, "false_positive_at"));
+        await using var again = await Listener.StartAsync(servers, VisionLink.ClipKeepTopic + id);
+        Assert.False((bool?)(await again.NextAsync())["keep"]);
+    }
+
+    [Fact]
+    public async Task Without_the_broker_a_clip_is_not_marked_a_false_positive()
+    {
+        // Nothing listens on port 1.
+        await using var site = await Site.StartAsync(servers, brokerPort: 1);
+        var id = await site.AddClipAsync(Noon, [new Trigger("red_light", 5)]);
+
+        using var refused = await site.PostAsync($"/clips/{id}?handler=FalsePositive", ("on", "true"));
+        using var quick = await site.PostAsync("/?handler=QuickClip");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, refused.StatusCode);
+        Assert.Null(await site.ColumnAsync(id, "false_positive_at"));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, quick.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_quick_clip_asks_vision_for_what_it_has_just_seen()
+    {
+        await using var site = await Site.StartAsync(servers);
+        await using var listener = await Listener.StartAsync(servers, VisionLink.ClipCommandTopic);
+
+        using var asked = await site.PostAsync("/?handler=QuickClip");
+        var waiting = await asked.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var command = await listener.NextAsync();
+
+        Assert.Equal("clip_command/1", (string?)command["schema"]);
+        Assert.Equal(Site.Camera, (string?)command["camera"]);
+        Assert.Equal(VisionLink.QuickClipReason, (string?)command["reason"]);
+        Assert.Equal(90, (double?)command["pre_s"]);
+        Assert.Equal(0, (double?)command["post_s"]);
+        // It lands on the manual clips, which look again until the clip is there.
+        var url = asked.RequestMessage!.RequestUri!.PathAndQuery;
+        Assert.StartsWith("/types/manual?asked=", url);
+        Assert.Contains("data-reload-after", waiting);
+
+        var clip = await site.AddClipAsync(
+            DateTimeOffset.UtcNow.AddSeconds(-Site.ClipSeconds), [new Trigger("manual", Site.ClipSeconds + 1, Reason: VisionLink.QuickClipReason)]);
+        var arrived = await site.Client.GetStringAsync(url, TestContext.Current.CancellationToken);
+        Assert.Contains(clip.ToString(), arrived);
+        Assert.DoesNotContain("data-reload-after", arrived);
+    }
+
+    [Fact]
+    public async Task A_quick_clip_that_never_comes_is_given_up_on()
+    {
+        await using var site = await Site.StartAsync(servers);
+        var longAgo = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddMinutes(-5).UtcDateTime.ToString("o"));
+
+        var html = await site.Client.GetStringAsync($"/types/manual?asked={longAgo}", TestContext.Current.CancellationToken);
+
+        Assert.Contains("has not arrived", html);
+        Assert.DoesNotContain("data-reload-after", html);
+    }
+
+    [Fact]
+    public async Task A_change_without_the_token_a_page_gives_is_refused()
+    {
+        await using var site = await Site.StartAsync(servers);
+        var id = await site.AddClipAsync(Noon, [new Trigger("red_light", 5)]);
+
+        using var response = await site.Client.PostAsync(
+            $"/clips/{id}?handler=Archive",
+            new FormUrlEncodedContent([KeyValuePair.Create("on", "true")]),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Null(await site.ColumnAsync(id, "archived_at"));
     }
 
     static async Task<HttpStatusCode> StatusAsync(Site site, string path)

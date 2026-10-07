@@ -34,6 +34,7 @@ def open_mqtt(config: SiteConfig, recorder: ClipRecorder | None) -> MqttSink:
         password=password,
         camera=config.camera.id,
         on_clip_command=None if recorder is None else recorder.command,
+        on_clip_keep=None if recorder is None else recorder.keep,
     )
 
 

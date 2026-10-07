@@ -82,6 +82,7 @@ FULL: dict[str, Any] = {
         "post_s": 55,
         "retention_days": 30,
         "max_gb": 200,
+        "kept_days": 183,
         "events": {
             "red_light": {"pre_s": 5, "post_s": 15},
             "incident_candidate": {},

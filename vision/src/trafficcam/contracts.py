@@ -210,6 +210,29 @@ class ClipCommand(BaseModel):
     ts: AwareDatetime
     camera: str
     reason: str
+    pre_s: float | None = Field(None, ge=0.0)
+    """
+    Seconds to keep before the moment it arrives. Absent, the site's default.
+    """
+    post_s: float | None = Field(None, ge=0.0)
+    """
+    Seconds to keep after it. Absent, the site's default.
+    """
+
+
+class ClipKeep(BaseModel):
+    """
+    Keep a clip longer, or not. `id` is the clip id. Topic: trafficcam/v1/cmd/keep/{id}, retained.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    schema_: Literal["clip_keep/1"] = Field("clip_keep/1", alias="schema")
+    id: UUID
+    ts: AwareDatetime
+    camera: str
+    keep: bool
 
 
 class Status(BaseModel):

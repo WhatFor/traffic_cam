@@ -18,7 +18,7 @@ public class RecordStoreTests(Servers servers)
         Migrator.Apply(database.ConnectionString, NullLoggerFactory.Instance);
 
         await using var source = NpgsqlDataSource.Create(database.ConnectionString);
-        Assert.Equal(4L, await Scalar(source, "SELECT count(*) FROM schemaversions"));
+        Assert.Equal(5L, await Scalar(source, "SELECT count(*) FROM schemaversions"));
         Assert.Equal(
             3L,
             await Scalar(source, "SELECT count(*) FROM timescaledb_information.hypertables WHERE hypertable_name IN ('passages', 'events', 'signal_changes')"));

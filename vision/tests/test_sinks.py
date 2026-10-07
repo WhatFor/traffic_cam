@@ -23,6 +23,7 @@ from trafficcam.contracts import (
     Clip,
     ClipCommand,
     ClipDeleted,
+    ClipKeep,
     Event,
     Passage,
     SignalChange,
@@ -31,6 +32,7 @@ from trafficcam.contracts import (
 from trafficcam.sinks.jsonl import JsonlSink
 from trafficcam.sinks.mqtt import (
     CLIP_COMMAND_TOPIC,
+    CLIP_KEEP_TOPIC,
     CLIPS_TOPIC,
     EVENTS_TOPIC,
     PASSAGES_TOPIC,
@@ -141,7 +143,8 @@ def received(broker: int) -> Iterator[Callable[[str, str | None], dict]]:
         connected.subscribe("trafficcam/v1/#", qos=1)
 
     def collect(_client: mqtt.Client, _userdata: object, message: mqtt.MQTTMessage) -> None:
-        messages.put((message.topic, json.loads(message.payload)))
+        if message.payload:  # an empty one is a retained message being removed
+            messages.put((message.topic, json.loads(message.payload)))
 
     subscribed = threading.Event()
 
@@ -346,3 +349,45 @@ def test_wait_for_clock_sync_polls_until_synchronised() -> None:
 
     assert slept == [2.0, 2.0]
     assert len(polls) == 2
+
+
+def retained_keeps(port: int) -> list[str]:
+    """The topics that still hold a retained keep message."""
+    topics: list[str] = []
+    client = mqtt.Client(CallbackAPIVersion.VERSION2, protocol=mqtt.MQTTv5)
+    client.on_message = lambda _client, _userdata, message: topics.append(message.topic)
+    client.connect("127.0.0.1", port)
+    client.loop_start()
+    client.subscribe(f"{CLIP_KEEP_TOPIC}/+", qos=1)
+    time.sleep(0.5)
+    client.disconnect()
+    client.loop_stop()
+    return topics
+
+
+def test_mqtt_hands_over_the_clips_to_keep_even_those_said_before_it_connected(
+    broker: int, received: Callable[..., dict]
+) -> None:
+    example = json.loads((EXAMPLES / "clip_keep.json").read_text())
+    topic = f"{CLIP_KEEP_TOPIC}/{example['id']}"
+    sender = mqtt.Client(CallbackAPIVersion.VERSION2, protocol=mqtt.MQTTv5)
+    sender.connect("127.0.0.1", broker)
+    sender.loop_start()
+    sender.publish(topic, json.dumps(example), qos=1, retain=True).wait_for_publish(5)
+    sender.disconnect()
+    sender.loop_stop()
+
+    keeps: queue.Queue[ClipKeep] = queue.Queue()
+    sink = sink_for(broker, on_clip_keep=keeps.put)
+    keep = keeps.get(timeout=5)
+    assert keep == ClipKeep.model_validate(example)
+    assert retained_keeps(broker) == [topic]
+
+    # Once the clip is deleted there is nothing to keep, and the message goes.
+    sink.clip_deleted(
+        ClipDeleted.model_validate({"id": keep.id, "ts": keep.ts, "camera": keep.camera})
+    )
+    received(f"{CLIPS_TOPIC}/{keep.id}/deleted")
+    sink.close()
+    assert retained_keeps(broker) == []
+    assert keeps.empty()

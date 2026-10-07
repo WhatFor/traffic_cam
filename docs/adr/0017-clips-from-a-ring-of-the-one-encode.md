@@ -31,9 +31,9 @@ Where in the clip something happens is its time less the clip's `started_at`.
 
 **Files.** `<clips.dir>/YYYY/MM/DD/<clip id>.mp4`, written as `.mp4.part` and renamed when complete, with the index at the front so it plays over HTTP. A `.jpg` beside it is the frame at the first trigger's moment, at full size, decoded from the finished clip.
 
-**The manual trigger** is a `ClipCommand` on `trafficcam/v1/cmd/clip`. Vision takes the time it arrives as the moment. `just clip --host <pi> "reason"` sends one and waits for the clip to be announced. Vision's broker session is not kept, so a command sent while it is down is never acted on.
+**The manual trigger** is a `ClipCommand` on `trafficcam/v1/cmd/clip`. Vision takes the time it arrives as the moment. `just clip --host <pi> "reason"` sends one and waits for the clip to be announced. Vision's broker session is not kept, so a command sent while it is down is never acted on. A command may give its own `pre_s` and `post_s`, held to what the ring holds and to `max_s`; the clips site's quick clip asks for 90 s before and none after (0021).
 
-**Retention is vision's job**, since it owns the files: at start, after each clip, and daily, it deletes clips older than `retention_days` (30), then the oldest until the folder is under `max_gb` (200). Only files named as clips are touched. Each deletion is published as a `ClipDeleted` record and ingest sets `clips.deleted_at`; the row stays.
+**Retention is vision's job**, since it owns the files: at start, after each clip, and daily, it deletes clips older than `retention_days` (30), then the oldest until the folder is under `max_gb` (200). Only files named as clips are touched. Each deletion is published as a `ClipDeleted` record and ingest sets `clips.deleted_at`; the row stays. A clip with a `.keep` file beside it is deleted only after `kept_days` (183) and never to make room (0021).
 
 **picamera2's `CircularOutput2` is not used.** It is a delay line: everything comes out `buffer` seconds late, so a clip would be ready 90 s after it ended, and it writes the file on the encode path.
 
@@ -45,5 +45,5 @@ Where in the clip something happens is its time less the clip's `started_at`.
 - A clip that cannot be written is dropped: its event still carries a `clip_id` that nothing answers to. Failures are counted in `trafficcam_vision_dropped_total{queue="clips"}` and raise an alert (0012). The clips folder is never created by vision, so with the data drive unmounted nothing is written to the SD card.
 - On shutdown an open clip is closed with what it has and announced. If vision is killed instead, the `.part` file is removed at the next start.
 - A clip holds the camera's whole view for its length: every vehicle and pedestrian in it, not only the one the event is about. Clips stay on the Pi.
-- Clips are not yet served anywhere. The path in the record is a path on the Pi.
+- Clips are served by the clips site (0018). The path in the record is a path on the Pi.
 - If the encoder's bitrate is raised, the ring grows with it.

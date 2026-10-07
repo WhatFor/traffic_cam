@@ -19,6 +19,7 @@ MODELS: dict[str, type[BaseModel]] = {
     "clip/1": contracts.Clip,
     "clip_deleted/1": contracts.ClipDeleted,
     "clip_command/1": contracts.ClipCommand,
+    "clip_keep/1": contracts.ClipKeep,
     "status/1": contracts.Status,
 }
 

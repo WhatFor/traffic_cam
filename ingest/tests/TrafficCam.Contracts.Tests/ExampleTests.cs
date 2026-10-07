@@ -18,6 +18,7 @@ public class ExampleTests
         ["clip/1"] = typeof(Clip),
         ["clip_deleted/1"] = typeof(ClipDeleted),
         ["clip_command/1"] = typeof(ClipCommand),
+        ["clip_keep/1"] = typeof(ClipKeep),
         ["status/1"] = typeof(Status),
     };
 

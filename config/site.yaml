@@ -162,6 +162,7 @@ clips:
   max_s: 300
   retention_days: 30
   max_gb: 200
+  kept_days: 183        # for a clip marked to be kept; such a clip is not deleted to make room either
   events:               # the event types that trigger a clip, with their own lengths
     red_light: { pre_s: 5, post_s: 15 }
     banned_turn: { pre_s: 5, post_s: 15 }

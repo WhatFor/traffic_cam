@@ -4,6 +4,14 @@
     ViewData["Title"] = Wording.Title(Model.Type);
 }
 <h1>@Wording.Title(Model.Type)</h1>
+@if (Model.Waiting)
+{
+    <p class="notice" data-reload-after="2">A clip of the last moments was asked for. It will be here in a few seconds.</p>
+}
+@if (Model.Missing)
+{
+    <p class="notice">The clip that was asked for has not arrived. The camera service may be down.</p>
+}
 @if (Model.Entries.Count == 0)
 {
     <p>No clips.</p>

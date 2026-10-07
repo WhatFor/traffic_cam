@@ -13,7 +13,15 @@ from test_signals import SIGNAL_SITE
 
 from trafficcam.clips import ClipRecord
 from trafficcam.config import SiteConfig
-from trafficcam.contracts import Clip, ClipCommand, Event, Passage, SignalChange, SignalState
+from trafficcam.contracts import (
+    Clip,
+    ClipCommand,
+    ClipKeep,
+    Event,
+    Passage,
+    SignalChange,
+    SignalState,
+)
 from trafficcam.detectors import Detector
 from trafficcam.geometry import Observation, SceneGeometry
 from trafficcam.inference import InferenceBackend
@@ -190,6 +198,8 @@ class Recording:
         return event.model_copy(update={"clip_id": a_clip().id})
 
     def command(self, command: ClipCommand) -> None: ...
+
+    def keep(self, keep: ClipKeep) -> None: ...
 
     def drain(self) -> list[ClipRecord]:
         finished, self._finished = self._finished, []

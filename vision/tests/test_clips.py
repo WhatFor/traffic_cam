@@ -18,7 +18,7 @@ from trafficcam.clips.recorder import RingBufferRecorder
 from trafficcam.clips.retention import prune
 from trafficcam.clips.writer import VideoStream
 from trafficcam.config import Clips
-from trafficcam.contracts import Clip, ClipCommand, ClipDeleted, ClipTrigger, Event
+from trafficcam.contracts import Clip, ClipCommand, ClipDeleted, ClipKeep, ClipTrigger, Event
 
 FPS = 10
 WIDTH, HEIGHT = 64, 48
@@ -78,6 +78,7 @@ def settings(directory: Path) -> Clips:
             "max_s": 12,
             "retention_days": 30,
             "max_gb": 1,
+            "kept_days": 183,
             "events": {
                 "red_light": {"pre_s": 5, "post_s": 3},
                 "speeding": {"pre_s": 2, "post_s": 2, "min": {"speed_mph": 45}},
@@ -267,6 +268,22 @@ def test_a_command_gets_a_clip_of_the_default_length(encoded: Encoded, tmp_path:
     assert clip.triggers == [ClipTrigger(type="manual", at=at(12), event_id=None, reason="to see")]
 
 
+def test_a_command_can_ask_for_what_the_ring_holds_and_no_more(
+    encoded: Encoded, tmp_path: Path
+) -> None:
+    ring = a_ring(encoded, end_s=14)
+    recorder = a_recorder(ring, tmp_path)
+    recorder._now = lambda: at(12)  # noqa: SLF001
+
+    command = {"id": uuid.uuid4(), "ts": at(0), "camera": "junction-1", "reason": "quick clip"}
+    recorder.command(ClipCommand.model_validate(command | {"pre_s": 200, "post_s": 0}))
+    recorder.step()
+    clip = only_clip(recorder)
+
+    # Asked for 200 s back: the clip may be 12 s long, and ends at the moment it was asked for.
+    assert (clip.started_at, clip.ended_at) == (at(0), at(12))
+
+
 def test_an_event_of_another_type_gets_no_clip(encoded: Encoded, tmp_path: Path) -> None:
     recorder = a_recorder(a_ring(encoded), tmp_path)
     event = an_event("amber_crossing")
@@ -366,6 +383,74 @@ def test_the_oldest_clips_go_first_when_the_folder_is_too_big(tmp_path: Path) ->
     assert pruned.deleted == [oldest]
     assert pruned.remaining_bytes == 8_002_200
     assert {path.stem for path in day.iterdir()} == {str(middle), str(newest)}
+
+
+def keep_marker(directory: Path, clip_id: uuid.UUID) -> Path:
+    return directory / f"{clip_id}.keep"
+
+
+def test_a_kept_clip_outlasts_the_retention_and_is_not_deleted_to_make_room(tmp_path: Path) -> None:
+    day = tmp_path / "2026" / "08" / "20"
+    kept = a_stored_clip(day, age_days=40, megabytes=4)
+    keep_marker(day, kept).touch()
+    recent = tmp_path / "2026" / "10" / "05"
+    older = a_stored_clip(recent, age_days=2, megabytes=4)
+    newer = a_stored_clip(recent, age_days=1, megabytes=4)
+
+    pruned = prune(tmp_path, NOW, timedelta(days=30), 9_000_000, kept_for=timedelta(days=183))
+
+    # The kept clip's size still counts, so an unmarked one made room for it.
+    assert pruned.deleted == [older]
+    assert pruned.remaining_bytes == 8_002_200
+    assert (day / f"{kept}.mp4").exists()
+    assert (recent / f"{newer}.mp4").exists()
+
+
+def test_a_kept_clip_goes_in_the_end(tmp_path: Path) -> None:
+    day = tmp_path / "2026" / "03" / "01"
+    kept = a_stored_clip(day, age_days=200, megabytes=1)
+    keep_marker(day, kept).touch()
+
+    pruned = prune(tmp_path, NOW, timedelta(days=30), 10_000_000, kept_for=timedelta(days=183))
+
+    assert pruned.deleted == [kept]
+    assert not tmp_path.joinpath("2026").exists()
+
+
+def a_keep(clip_id: uuid.UUID, keep: bool) -> ClipKeep:
+    return ClipKeep.model_validate({"id": clip_id, "ts": NOW, "camera": "junction-1", "keep": keep})
+
+
+def test_the_recorder_marks_a_clip_to_be_kept_and_takes_the_mark_off(
+    encoded: Encoded, tmp_path: Path
+) -> None:
+    day = tmp_path / "2026" / "09" / "01"
+    old = a_stored_clip(day, age_days=20, megabytes=1)
+    recorder = a_recorder(a_ring(encoded), tmp_path)
+
+    recorder.keep(a_keep(old, keep=True))
+    recorder.keep(a_keep(uuid.uuid4(), keep=True))  # a clip that is not there
+    recorder.step()
+    assert keep_marker(day, old).exists()
+
+    recorder.keep(a_keep(old, keep=False))
+    recorder.step()
+    assert not keep_marker(day, old).exists()
+    assert recorder.drain() == []
+
+
+def test_the_recorder_keeps_a_marked_clip_past_its_retention(
+    encoded: Encoded, tmp_path: Path
+) -> None:
+    day = tmp_path / "2026" / "09" / "01"
+    old = a_stored_clip(day, age_days=35, megabytes=1)
+    keep_marker(day, old).touch()
+    recorder = a_recorder(a_ring(encoded), tmp_path)
+
+    recorder.step()
+
+    assert recorder.drain() == []
+    assert (day / f"{old}.mp4").exists()
 
 
 def test_part_written_files_are_cleared_only_when_asked(tmp_path: Path) -> None:

@@ -470,6 +470,51 @@ namespace TrafficCam.Contracts
         [System.Text.Json.Serialization.JsonPropertyName("reason")]
         public required string Reason { get; set; }
 
+        /// <summary>
+        /// Seconds to keep before the moment it arrives. Absent, the site's default.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("pre_s")]
+        public double? PreS { get; set; }
+
+        /// <summary>
+        /// Seconds to keep after it. Absent, the site's default.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("post_s")]
+        public double? PostS { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    /// <summary>
+    /// Keep a clip longer, or not. `id` is the clip id. Topic: trafficcam/v1/cmd/keep/{id}, retained.
+    /// </summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "11.6.1.0 (Newtonsoft.Json v13.0.0.0)")]
+    public partial class ClipKeep
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("schema")]
+        public required string Schema { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public required System.Guid Id { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("ts")]
+        public required System.DateTimeOffset Ts { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("camera")]
+        public required string Camera { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("keep")]
+        public required bool Keep { get; set; }
+
         private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
 
         [System.Text.Json.Serialization.JsonExtensionData]
