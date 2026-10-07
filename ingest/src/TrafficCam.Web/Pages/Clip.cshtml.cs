@@ -8,6 +8,9 @@ public sealed class ClipModel(ClipDirectory directory, ClipMarks marks, VisionLi
     /// <summary>How long before a trigger's moment a link from a list starts the clip.</summary>
     public const double LeadInSeconds = 2;
 
+    /// <summary>The speeds a clip can be played at.</summary>
+    public static readonly int[] Speeds = [1, 2, 5];
+
     [BindProperty(SupportsGet = true)]
     public Guid Id { get; set; }
 

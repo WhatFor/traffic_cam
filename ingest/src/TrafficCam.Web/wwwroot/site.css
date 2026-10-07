@@ -119,6 +119,11 @@ h2 {
     margin: 0.75rem 0;
 }
 
+button[aria-pressed="true"] {
+    font-weight: 600;
+    outline: 2px solid currentColor;
+}
+
 .describe input {
     flex: 1;
     max-width: 40rem;

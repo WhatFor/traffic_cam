@@ -14,6 +14,12 @@ else
     <video controls autoplay muted playsinline preload="metadata"
            poster="@(clip.StillPath is null ? null : $"/clips/{clip.Id}/still")"
            src="/clips/@clip.Id/video#t=@Model.From.ToString("0.#", invariant)"></video>
+    <div class="actions">
+        @foreach (var rate in ClipModel.Speeds)
+        {
+            <button type="button" data-rate="@rate" aria-pressed="@(rate == 1 ? "true" : "false")">@(rate)x</button>
+        }
+    </div>
 }
 <h1><time datetime="@clip.StartedAt.UtcDateTime.ToString("o")">@Wording.Utc(clip.StartedAt)</time></h1>
 <p class="detail">

@@ -82,6 +82,7 @@ public class SiteTests(Servers servers)
         Assert.Contains($"src=\"/clips/{id}/video#t=3\"", html);
         Assert.Contains($"poster=\"/clips/{id}/still\"", html);
         Assert.Contains("20 s, 0 MB", html);
+        Assert.Equal(["1", "2", "5"], Regex.Matches(html, "data-rate=\"(\\d+)\"").Select(match => match.Groups[1].Value));
         Assert.Matches("Red light.*data-seek=\"5\".*west-&gt;north, 1.2 s into red.*Manual.*data-seek=\"9.5\".*to see",
             html.ReplaceLineEndings(" "));
         Assert.Contains("2026-10-06T12:00:05", html);
