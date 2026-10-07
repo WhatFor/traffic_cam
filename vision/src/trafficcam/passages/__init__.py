@@ -29,6 +29,9 @@ class _OpenPassage:
     exit_zone: str | None = None
     crossing: Crossing | None = None
     seen_in_a_zone: bool = False
+    # When the track was first seen in the junction, and in each exit zone.
+    junction_at: datetime | None = None
+    exit_at: dict[str, datetime] = field(default_factory=dict)
     # Approach zones that depend on heading: when and where the track was first seen in
     # each, or None once the zone has been ruled out.
     first_in: dict[str, tuple[datetime, float, float] | None] = field(default_factory=dict)
@@ -41,6 +44,19 @@ def _speed_flags(speed: SpeedResult) -> dict[str, object]:
         flags["sustained_at"] = speed.sustained_at.isoformat()
     if speed.stretch_kmh:
         flags["stretch_kmh"] = speed.stretch_kmh
+    return flags
+
+
+def _flags(
+    state: _OpenPassage, exit_zone: str | None, speed: SpeedResult | None
+) -> dict[str, object]:
+    flags: dict[str, object] = {}
+    if speed and _speed_flags(speed):
+        flags["speed"] = _speed_flags(speed)
+    # When it entered the junction and the zone it left by: what paces a drawing of the trip.
+    path = {"junction_at": state.junction_at, "exit_at": state.exit_at.get(exit_zone or "")}
+    if any(path.values()):
+        flags["path"] = {name: at.isoformat() for name, at in path.items() if at is not None}
     return flags
 
 
@@ -59,6 +75,7 @@ class PassageBuilder:
         self._signals = signals
         self._speeds = speeds
         self._zones = config.zones
+        self._junction = config.junction
         self._line_lag = {
             name: timedelta(seconds=line.lag_s) for name, line in config.lines.items()
         }
@@ -80,8 +97,11 @@ class PassageBuilder:
             for name in observation.zones_of(index):
                 state.seen_in_a_zone = True
                 zone = self._zones[name]
+                if name == self._junction and state.junction_at is None:
+                    state.junction_at = timestamp
                 if zone.role == "exit":
                     state.exit_zone = name
+                    state.exit_at.setdefault(name, timestamp)
                 elif zone.role == "approach" and state.entry_zone is None:
                     if zone.entry_heading is None:
                         state.entry_zone = name
@@ -171,6 +191,6 @@ class PassageBuilder:
                 "signal_state_at_crossing": signal.state if signal else None,
                 "signal_source": signal.source if signal else None,
                 "speed_kmh": speed.sustained_kmh if speed else None,
-                "flags": {"speed": _speed_flags(speed)} if speed and _speed_flags(speed) else {},
+                "flags": _flags(state, exit_, speed),
             }
         )

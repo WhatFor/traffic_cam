@@ -129,6 +129,22 @@
         "keyframe_path", "started_at", "ended_at", "bytes"
       ]
     },
+    "GroupState": {
+      "description": "A signal group's state. Topic: trafficcam/v1/groups/{group}, retained; or .../settled.",
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "const": "group_state/1" },
+        "id": { "type": "string", "format": "uuid" },
+        "ts": { "description": "When the group came to be in this state.", "type": "string", "format": "date-time" },
+        "camera": { "type": "string" },
+        "config_hash": { "type": "string" },
+        "group": { "description": "Heads that change together, as named in the site's signal plan.", "type": "string" },
+        "state": { "$ref": "#/definitions/SignalState" },
+        "source": { "oneOf": [{ "type": "null" }, { "$ref": "#/definitions/SignalSource" }] },
+        "settled": { "description": "True for the state as known some time on; false for it as known at once.", "type": "boolean" }
+      },
+      "required": ["schema", "id", "ts", "camera", "config_hash", "group", "state", "source", "settled"]
+    },
     "ClipDeleted": {
       "description": "A clip's files were deleted. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}/deleted.",
       "type": "object",

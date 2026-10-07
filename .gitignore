@@ -28,6 +28,7 @@ obj/
 # Ingest and web as published by `just deploy`
 deploy/ingest/
 deploy/web/
+deploy/live/
 
 # Frame grabs and previews used for calibration
 calibration/

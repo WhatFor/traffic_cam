@@ -2,19 +2,20 @@
 
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
 import supervision as sv
 
 from trafficcam.clips import ClipRecorder, NullRecorder
-from trafficcam.contracts import Clip, Event, Passage, SignalChange, SignalState
+from trafficcam.contracts import Clip, Event, GroupState, Passage, SignalChange, SignalState
 from trafficcam.detectors import Detector
 from trafficcam.geometry import Observation, SceneGeometry
 from trafficcam.inference import InferenceBackend
 from trafficcam.passages import PassageBuilder
 from trafficcam.signals import SignalReader, Signals
+from trafficcam.signals.published import GroupStates
 from trafficcam.sinks import EventSink
 from trafficcam.sources import Frame, FrameSource
 from trafficcam.tracking import Tracker
@@ -30,6 +31,7 @@ class FrameResult:
     events: list[Event]
     signals: Mapping[str, SignalState]  # every head's state in this frame
     signal_changes: list[SignalChange]
+    group_states: list[GroupState] = field(default_factory=list)
 
 
 class FrameObserver(Protocol):
@@ -50,6 +52,7 @@ class Pipeline:
         detectors: Sequence[Detector] = (),
         signals: Signals | None = None,
         signal_reader: SignalReader | None = None,
+        group_states: GroupStates | None = None,
     ) -> None:
         self._backend = backend
         self._tracker = tracker
@@ -58,6 +61,7 @@ class Pipeline:
         self._detectors = detectors
         self._signals = signals
         self._signal_reader = signal_reader
+        self._group_states = group_states
         self._last_timestamp: datetime | None = None
 
     def process(self, frame: Frame) -> FrameResult:
@@ -88,6 +92,7 @@ class Pipeline:
             events=events + self._on_closed(closed),
             signals=self._signals.current() if self._signals is not None else {},
             signal_changes=signal_changes,
+            group_states=(self._group_states.update(frame.timestamp) if self._group_states else []),
         )
 
     def flush(self) -> tuple[list[Passage], list[Event]]:
@@ -144,6 +149,8 @@ def run(
         for sink in sinks:
             for change in result.signal_changes:
                 sink.signal(change)
+            for state in result.group_states:
+                sink.group_state(state)
         publish(result.passages, result.events)
         send_clips(clips, sinks)
     # Only a replay gets here.

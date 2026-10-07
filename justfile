@@ -3,7 +3,7 @@
 default:
     @just --list
 
-# Publish ingest and web; push deploy/ (including .env), vision/ and config/ to the Pi; update the Compose stack, and restart vision if it changed
+# Publish ingest, web and live; push deploy/ (including .env), vision/ and config/ to the Pi; update the Compose stack, and restart vision if it changed
 [arg("target", long="target", help="SSH destination of the Pi, as user@host")]
 deploy target:
     #!/usr/bin/env bash
@@ -14,6 +14,8 @@ deploy target:
         --self-contained false --output deploy/ingest --nologo --verbosity quiet
     dotnet publish ingest/src/TrafficCam.Web --configuration Release --runtime linux-arm64 \
         --self-contained false --output deploy/web --nologo --verbosity quiet
+    dotnet publish ingest/src/TrafficCam.Live --configuration Release --runtime linux-arm64 \
+        --self-contained false --output deploy/live --nologo --verbosity quiet
 
     # Top-level directories with changed files; each is named after its service.
     sent=$(rsync -az --delete --mkpath --itemize-changes deploy/ {{target}}:trafficcam/deploy/)

@@ -11,9 +11,10 @@ from test_geometry import START
 from test_signals import SIGNAL_SITE
 
 from trafficcam.config import SiteConfig
-from trafficcam.contracts import SignalSource, SignalState
+from trafficcam.contracts import GroupState, SignalSource, SignalState
 from trafficcam.signals import UNKNOWN, LineState, Reading, Signals
 from trafficcam.signals.estimator import OFF, ON, Placed, PlanTimings, StageSequenceEstimator
+from trafficcam.signals.published import SETTLE, GroupStates
 from trafficcam.signals.study import gaps, usual
 
 RED, RED_AMBER, GREEN, AMBER, NOT_KNOWN = (
@@ -333,3 +334,71 @@ def test_the_usual_gap_leaves_out_the_strays() -> None:
     # One that varies with traffic is given room beyond what was seen.
     varying, _ = usual(np.linspace(20.0, 30.0, 101))
     assert varying[0] < 20.0 < 30.0 < varying[1]
+
+
+def published(until: float, near: bool = False) -> list[GroupState]:
+    """What is published of the groups while the side head goes green at 100 and 160, with
+    main's heads unreadable, or with `near` read through main's green from 120 to 155."""
+    signals = Signals(CONFIG, "sha256:test", StageSequenceEstimator(CONFIG))
+    groups = GroupStates(CONFIG, "sha256:test", signals)
+    records: list[GroupState] = []
+    since: dict[str, tuple[SignalState, float]] = {}
+    for tick in range(int(90 * 5), int(until * 5)):
+        second = tick / 5
+        showing = {"side": GREEN if (second - 100) % 60 < 10 else RED}
+        if near:
+            showing["near"] = main_shows(int(second), misreading=False)
+        for head, state in showing.items():
+            if head not in since or since[head][0] != state:
+                since[head] = (state, second)
+        signals.update(
+            at(second), {head: Reading(state, at(began)) for head, (state, began) in since.items()}
+        )
+        records += groups.update(at(second))
+    return records
+
+
+def told(records: list[GroupState], group: str, settled: bool) -> list[tuple[SignalState, float]]:
+    return [
+        (record.state, round((record.ts - START).total_seconds(), 1))
+        for record in records
+        if record.group == group and record.settled == settled
+    ]
+
+
+def test_a_groups_state_is_told_as_known_at_once_and_again_once_it_has_settled() -> None:
+    records = published(until=215)
+
+    # At once: main's green began at 120, and 10 s on nothing says whether it has ended.
+    # The side head going green at 160 then shows it ended at 155, but that is by then past.
+    live = told(records, "main", settled=False)
+    assert (GREEN, 120.1) in live
+    assert live[live.index((GREEN, 120.1)) + 1] == (NOT_KNOWN, 130.0)
+    assert AMBER not in [state for state, _ in live]
+
+    # Settled, 45 s on: the green ran to 155, and the amber after it is there.
+    settled = told(records, "main", settled=True)
+    after_green = settled[settled.index((GREEN, 120.1)) + 1 :]
+    assert after_green[0][1] == pytest.approx(155, abs=0.2)
+    assert (AMBER, 155.1) in after_green
+    assert (RED, 158.1) in after_green
+
+    # Each is told once its moment is 45 s old, in order, dated when it happened.
+    times = [when for _, when in settled]
+    assert times == sorted(times)
+    assert all(record.ts <= at(215) - SETTLE for record in records if record.settled)
+
+
+def test_a_group_nobody_can_see_and_one_that_is_read_are_both_told() -> None:
+    records = published(until=215, near=True)
+
+    unseen = told(records, "unseen", settled=True)
+    assert (GREEN, 112.1) in unseen
+    sources = {record.source for record in records if record.group == "main" and record.settled}
+    # Main is read from its head where that can be, so its green and its end are observed.
+    assert SignalSource.observed in sources
+    assert (AMBER, 155.0) in told(records, "main", settled=True)
+    assert {record.source for record in records if record.group == "unseen"} <= {
+        SignalSource.inferred,
+        None,
+    }

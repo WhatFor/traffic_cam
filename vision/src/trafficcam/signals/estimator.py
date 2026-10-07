@@ -99,6 +99,10 @@ class PhaseEstimator(Protocol):
         controls it."""
         ...
 
+    def state_of_group(self, group: str, at: datetime) -> Placed:
+        """The state of a group of the plan."""
+        ...
+
     def state_for_head(self, head: str, at: datetime) -> Placed | None:
         """What a head should be showing, going only by heads of other groups; None if the
         head is in no group."""
@@ -122,6 +126,9 @@ class NullEstimator:
 
     def state_of(self, target: str, at: datetime) -> Placed | None:
         return None
+
+    def state_of_group(self, group: str, at: datetime) -> Placed:
+        return UNKNOWN
 
     def state_for_head(self, head: str, at: datetime) -> Placed | None:
         return None

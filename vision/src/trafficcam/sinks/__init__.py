@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from trafficcam.contracts import Clip, ClipDeleted, Event, Passage, SignalChange
+from trafficcam.contracts import Clip, ClipDeleted, Event, GroupState, Passage, SignalChange
 
 
 class EventSink(Protocol):
@@ -11,6 +11,8 @@ class EventSink(Protocol):
     def event(self, event: Event) -> None: ...
 
     def signal(self, change: SignalChange) -> None: ...
+
+    def group_state(self, state: GroupState) -> None: ...
 
     def clip(self, clip: Clip) -> None: ...
 

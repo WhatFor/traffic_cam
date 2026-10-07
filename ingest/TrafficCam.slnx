@@ -2,11 +2,13 @@
   <Folder Name="/src/">
     <Project Path="src/TrafficCam.Contracts/TrafficCam.Contracts.csproj" />
     <Project Path="src/TrafficCam.Ingest/TrafficCam.Ingest.csproj" />
+    <Project Path="src/TrafficCam.Live/TrafficCam.Live.csproj" />
     <Project Path="src/TrafficCam.Web/TrafficCam.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/TrafficCam.Contracts.Tests/TrafficCam.Contracts.Tests.csproj" />
     <Project Path="tests/TrafficCam.Ingest.Tests/TrafficCam.Ingest.Tests.csproj" />
+    <Project Path="tests/TrafficCam.Live.Tests/TrafficCam.Live.Tests.csproj" />
     <Project Path="tests/TrafficCam.Web.Tests/TrafficCam.Web.Tests.csproj" />
   </Folder>
 </Solution>

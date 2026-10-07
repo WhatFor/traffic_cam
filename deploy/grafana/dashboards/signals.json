@@ -244,6 +244,103 @@
     },
     {
       "type": "state-timeline",
+      "title": "Signal groups",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescaledb"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescaledb"
+          },
+          "rawSql": "(SELECT DISTINCT ON (group_id) $__timeFrom()::timestamptz AS \"time\", group_id, state FROM group_states WHERE settled AND ts < $__timeFrom() ORDER BY group_id, ts DESC) UNION ALL (SELECT ts, group_id, state FROM group_states WHERE settled AND $__timeFilter(ts)) ORDER BY 1",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "group_id"
+            ],
+            "keepFields": false,
+            "naming": {
+              "asLabels": true
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "red": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "red"
+                },
+                "red_amber": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "red and amber"
+                },
+                "green": {
+                  "color": "green",
+                  "index": 2,
+                  "text": "green"
+                },
+                "amber": {
+                  "color": "yellow",
+                  "index": 3,
+                  "text": "amber"
+                },
+                "unknown": {
+                  "color": "#808080",
+                  "index": 4,
+                  "text": "unknown"
+                }
+              }
+            }
+          ],
+          "displayName": "${__field.labels.group_id}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "never",
+        "rowHeight": 0.85,
+        "alignValue": "left",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "description": "What each group of heads is taken to be showing, 45 seconds on, by when everything that will be learned about a moment has been: read from its heads where they can be read, otherwise worked out from the plan of the signals. North is a head the camera cannot see. Grey is not known. The right-hand edge is always 45 seconds behind.",
+      "id": 13,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 6
+      }
+    },
+    {
+      "type": "state-timeline",
       "title": "Signal heads",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -330,11 +427,11 @@
           "mode": "single"
         }
       },
-      "description": "Each head's state over time. Zoom in to a few minutes to see single cycles.",
+      "description": "What was read from each head's lamps, right or wrong. Each head's state over time. Zoom in to a few minutes to see single cycles.",
       "id": 5,
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 10,
         "w": 24,
         "h": 9
       }
@@ -375,7 +472,7 @@
       "id": 6,
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 19,
         "w": 12,
         "h": 12
       }
@@ -429,7 +526,7 @@
       "id": 7,
       "gridPos": {
         "x": 12,
-        "y": 13,
+        "y": 19,
         "w": 12,
         "h": 8
       }
@@ -483,7 +580,7 @@
       "id": 8,
       "gridPos": {
         "x": 12,
-        "y": 21,
+        "y": 27,
         "w": 12,
         "h": 8
       }
@@ -525,7 +622,7 @@
       "id": 9,
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 31,
         "w": 6,
         "h": 8
       }
@@ -598,7 +695,7 @@
       "id": 10,
       "gridPos": {
         "x": 6,
-        "y": 25,
+        "y": 31,
         "w": 6,
         "h": 8
       }
@@ -639,7 +736,7 @@
       "id": 11,
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 39,
         "w": 12,
         "h": 8
       }
@@ -713,7 +810,7 @@
       "id": 12,
       "gridPos": {
         "x": 12,
-        "y": 29,
+        "y": 35,
         "w": 12,
         "h": 12
       }

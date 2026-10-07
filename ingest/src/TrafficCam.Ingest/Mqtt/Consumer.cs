@@ -26,6 +26,9 @@ public sealed class Consumer(
     public const string EventsTopic = "trafficcam/v1/events/";
     /// <summary>Followed by the signal head's name.</summary>
     public const string SignalsTopic = "trafficcam/v1/signals/";
+    /// <summary>Followed by the group's name, and by <see cref="SettledSuffix"/> for its settled state.</summary>
+    public const string GroupsTopic = "trafficcam/v1/groups/";
+    public const string SettledSuffix = "/settled";
     /// <summary>Followed by the clip's id, and by <see cref="DeletedSuffix"/> once its files are gone.</summary>
     public const string ClipsTopic = "trafficcam/v1/clips/";
     public const string DeletedSuffix = "/deleted";
@@ -86,6 +89,8 @@ public sealed class Consumer(
             .WithTopicFilter(PassagesTopic, MqttQualityOfServiceLevel.AtLeastOnce)
             .WithTopicFilter(EventsTopic + "+", MqttQualityOfServiceLevel.AtLeastOnce)
             .WithTopicFilter(SignalsTopic + "+", MqttQualityOfServiceLevel.AtLeastOnce)
+            .WithTopicFilter(GroupsTopic + "+", MqttQualityOfServiceLevel.AtLeastOnce)
+            .WithTopicFilter(GroupsTopic + "+" + SettledSuffix, MqttQualityOfServiceLevel.AtLeastOnce)
             .WithTopicFilter(ClipsTopic + "+", MqttQualityOfServiceLevel.AtLeastOnce)
             .WithTopicFilter(ClipsTopic + "+" + DeletedSuffix, MqttQualityOfServiceLevel.AtLeastOnce)
             .Build();
@@ -137,6 +142,7 @@ public sealed class Consumer(
             Count(IngestMetrics.Passage, records.Passages.Count, stored.Passages);
             Count(IngestMetrics.Event, records.Events.Count, stored.Events);
             Count(IngestMetrics.Signal, records.Signals.Count, stored.Signals);
+            Count(IngestMetrics.Group, records.Groups.Count, stored.Groups);
             Count(IngestMetrics.Clip, records.Clips.Count, stored.Clips);
             Count(IngestMetrics.ClipDeleted, records.ClipsDeleted.Count, stored.ClipsDeleted);
 
@@ -187,6 +193,12 @@ public sealed class Consumer(
             if (SignalChangeParser.TryParse(payload, out var change, out error))
                 records.Signals.Add(change);
             return (IngestMetrics.Signal, error);
+        }
+        if (topic.StartsWith(GroupsTopic, StringComparison.Ordinal))
+        {
+            if (GroupStateParser.TryParse(payload, out var state, out error))
+                records.Groups.Add(state);
+            return (IngestMetrics.Group, error);
         }
         if (topic.StartsWith(ClipsTopic, StringComparison.Ordinal))
         {

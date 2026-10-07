@@ -184,7 +184,7 @@ traffic-cam/
 │   │   ├── health/        # metrics, image quality, camera alignment, watchdog
 │   │   └── debug/         # Rerun sink
 │   └── tests/             # unit tests + fixture tests on recorded track logs
-├── ingest/                # .NET solution: ingest (worker, notifier), web (clips site), tests
+├── ingest/                # .NET solution: ingest (worker, notifier), web (clips site), live (junction view), tests
 ├── db/migrations/         # plain SQL, applied by ingest at startup
 ├── deploy/
 │   ├── compose.yaml
@@ -212,6 +212,8 @@ Three contracts hold the system together: MQTT payloads between vision and inges
 | `trafficcam/v1/passages` | 1 | No | One completed vehicle trip | vision → ingest |
 | `trafficcam/v1/events/{type}` | 1 | No | One detector event | vision → ingest, notifier |
 | `trafficcam/v1/signals/{head_id}` | 1 | Yes | Signal state change | vision → ingest, dashboards |
+| `trafficcam/v1/groups/{group}` | 1 | Yes | A group of heads' state as known at once, read or inferred | vision → ingest |
+| `trafficcam/v1/groups/{group}/settled` | 1 | No | The same as known 45 s on, dated when it happened | vision → ingest |
 | `trafficcam/v1/clips/{clip_id}` | 1 | No | Clip finished: path, start, end, keyframe, and what triggered it | vision → ingest, notifier |
 | `trafficcam/v1/clips/{clip_id}/deleted` | 1 | No | Clip files deleted by retention | vision → ingest |
 | `trafficcam/v1/cmd/clip` | 1 | No | Manual clip trigger with a reason, and optionally how far back and forward to reach | you, tools or the clips site → vision |
@@ -724,7 +726,7 @@ Acceptance: incident false candidates stay within a tolerable daily number; esti
 
 ### Phase 10 — Public stats
 
-- [ ] Choose a VPS and front end; push aggregates over outbound HTTPS; nothing that identifies a vehicle.
+- [ ] Choose a VPS and front end; push aggregates over outbound HTTPS; nothing that identifies a vehicle. The live view (ADR 0023) runs on the Pi; its one feed endpoint is what would be pushed, and whether individual trips may leave the Pi is still to be decided.
 
 ### Later, ask first
 

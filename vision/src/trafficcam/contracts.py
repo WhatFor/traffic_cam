@@ -180,6 +180,34 @@ class Clip(BaseModel):
     bytes: int = Field(..., ge=0)
 
 
+class GroupState(BaseModel):
+    """
+    A signal group's state. Topic: trafficcam/v1/groups/{group}, retained; or .../settled.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    schema_: Literal["group_state/1"] = Field("group_state/1", alias="schema")
+    id: UUID
+    ts: AwareDatetime
+    """
+    When the group came to be in this state.
+    """
+    camera: str
+    config_hash: str
+    group: str
+    """
+    Heads that change together, as named in the site's signal plan.
+    """
+    state: SignalState
+    source: SignalSource | None
+    settled: bool
+    """
+    True for the state as known some time on; false for it as known at once.
+    """
+
+
 class ClipDeleted(BaseModel):
     """
     A clip's files were deleted. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}/deleted.

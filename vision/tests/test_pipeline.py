@@ -212,6 +212,8 @@ class Recording:
 
     def signal(self, change: SignalChange) -> None: ...
 
+    def group_state(self, state: object) -> None: ...
+
     def clip(self, clip: Clip) -> None:
         self.clips.append(clip)
 

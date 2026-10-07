@@ -147,6 +147,30 @@ services:
       start_period: 60s
       start_interval: 5s
 
+  # The live view: a drawing of the junction with its traffic and signals, a minute and a
+  # half behind. Read-only, and open to the local network without a login.
+  live:
+    <<: *service
+    image: mcr.microsoft.com/dotnet/aspnet:10.0.12
+    user: app
+    working_dir: /app
+    command: ["dotnet", "TrafficCam.Live.dll"]
+    depends_on:
+      # Ingest creates the tables this reads.
+      ingest: { condition: service_healthy }
+    ports:
+      - "8082:8080"
+    environment:
+      Database__Host: timescaledb
+      Database__Password: ${POSTGRES_PASSWORD:?set it in deploy/.env}
+    volumes:
+      - ./live:/app:ro
+    healthcheck:
+      test: ["CMD", "dotnet", "TrafficCam.Live.dll", "--healthcheck"]
+      interval: 60s
+      start_period: 60s
+      start_interval: 5s
+
   grafana:
     <<: *service
     image: grafana/grafana:13.2.3

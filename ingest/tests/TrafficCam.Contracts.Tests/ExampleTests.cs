@@ -15,6 +15,7 @@ public class ExampleTests
         ["passage/1"] = typeof(Passage),
         ["event/1"] = typeof(Event),
         ["signal_change/1"] = typeof(SignalChange),
+        ["group_state/1"] = typeof(GroupState),
         ["clip/1"] = typeof(Clip),
         ["clip_deleted/1"] = typeof(ClipDeleted),
         ["clip_command/1"] = typeof(ClipCommand),

@@ -16,6 +16,7 @@ MODELS: dict[str, type[BaseModel]] = {
     "passage/1": contracts.Passage,
     "event/1": contracts.Event,
     "signal_change/1": contracts.SignalChange,
+    "group_state/1": contracts.GroupState,
     "clip/1": contracts.Clip,
     "clip_deleted/1": contracts.ClipDeleted,
     "clip_command/1": contracts.ClipCommand,

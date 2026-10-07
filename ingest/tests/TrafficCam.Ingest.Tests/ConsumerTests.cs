@@ -73,6 +73,26 @@ public class ConsumerTests(Servers servers)
     }
 
     [Fact]
+    public async Task A_groups_state_is_stored_from_either_of_its_topics_and_only_once()
+    {
+        await using var ingest = await Ingest.StartAsync(servers);
+        var settled = Examples.GroupStatePayload();
+        var live = Examples.GroupStatePayload(("id", Guid.NewGuid().ToString()), ("settled", false), ("state", "unknown"), ("source", null));
+
+        await ingest.PublishAsync(settled, Consumer.GroupsTopic + "west_slip" + Consumer.SettledSuffix);
+        await ingest.PublishAsync(settled, Consumer.GroupsTopic + "west_slip" + Consumer.SettledSuffix);
+        await ingest.PublishAsync(live, Consumer.GroupsTopic + "west_slip");
+        await ingest.PublishAsync("{}"u8.ToArray(), Consumer.GroupsTopic + "west_slip");
+
+        await Eventually(() => ingest.Metrics.Duplicate(IngestMetrics.Group).Value == 1);
+        await Eventually(() => ingest.Metrics.Invalid(IngestMetrics.Group).Value == 1);
+        await Eventually(() => ingest.Metrics.Stored(IngestMetrics.Group).Value == 2);
+        Assert.Equal(2, await ingest.RowsAsync("group_states"));
+        Assert.Equal(1, await ingest.RowsAsync("group_states WHERE settled AND state = 'red' AND source = 'inferred' AND group_id = 'west_slip'"));
+        Assert.Equal(1, await ingest.RowsAsync("group_states WHERE NOT settled AND state = 'unknown' AND source IS NULL"));
+    }
+
+    [Fact]
     public async Task A_signal_change_sent_again_is_stored_once()
     {
         await using var ingest = await Ingest.StartAsync(servers);

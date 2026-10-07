@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/TrafficCam.Live/TrafficCam.Live.csproj" />
+    <!-- Ingest writes the rows this site reads, so the tests store their records through it. -->
+    <ProjectReference Include="../../src/TrafficCam.Ingest/TrafficCam.Ingest.csproj" />
+    <Compile Include="../TrafficCam.Ingest.Tests/Servers.cs" Link="Servers.cs" />
+    <Compile Include="../TrafficCam.Ingest.Tests/Examples.cs" Link="Examples.cs" />
+    <Content Include="../../../contracts/examples/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

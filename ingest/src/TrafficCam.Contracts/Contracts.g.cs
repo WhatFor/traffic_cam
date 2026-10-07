@@ -416,6 +416,62 @@ namespace TrafficCam.Contracts
     }
 
     /// <summary>
+    /// A signal group's state. Topic: trafficcam/v1/groups/{group}, retained; or .../settled.
+    /// </summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "11.6.1.0 (Newtonsoft.Json v13.0.0.0)")]
+    public partial class GroupState
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("schema")]
+        public required string Schema { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public required System.Guid Id { get; set; }
+
+        /// <summary>
+        /// When the group came to be in this state.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("ts")]
+        public required System.DateTimeOffset Ts { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("camera")]
+        public required string Camera { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("config_hash")]
+        public required string ConfigHash { get; set; }
+
+        /// <summary>
+        /// Heads that change together, as named in the site's signal plan.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("group")]
+        public required string Group { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("state")]
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<SignalState>))]
+        public required SignalState State { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("source")]
+        [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<SignalSource>))]
+        public required SignalSource? Source { get; set; }
+
+        /// <summary>
+        /// True for the state as known some time on; false for it as known at once.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("settled")]
+        public required bool Settled { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object>? _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    /// <summary>
     /// A clip's files were deleted. `id` is the clip id. Topic: trafficcam/v1/clips/{clip_id}/deleted.
     /// </summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "11.6.1.0 (Newtonsoft.Json v13.0.0.0)")]

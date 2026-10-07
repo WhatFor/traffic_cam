@@ -11,6 +11,7 @@ static class Examples
     public static string PassageJson { get; } = Read("passage.json");
     public static string EventJson { get; } = Read("event.json");
     public static string SignalChangeJson { get; } = Read("signal_change.json");
+    public static string GroupStateJson { get; } = Read("group_state.json");
     public static string ClipJson { get; } = Read("clip.json");
     public static string ClipDeletedJson { get; } = Read("clip_deleted.json");
 
@@ -44,6 +45,9 @@ static class Examples
         Assert.True(SignalChangeParser.TryParse(SignalChangePayload(), out var change, out var error), error);
         return change;
     }
+
+    public static byte[] GroupStatePayload(params (string Name, JsonNode? Value)[] changes) =>
+        Changed(GroupStateJson, changes);
 
     public static byte[] ClipPayload(params (string Name, JsonNode? Value)[] changes) => Changed(ClipJson, changes);
 

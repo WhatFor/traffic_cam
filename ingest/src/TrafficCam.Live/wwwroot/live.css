@@ -1,0 +1,144 @@
+:root {
+    --ground: #f4ede1;
+    --road: #ece3d3;
+    --line: #b8a98f;
+    --faint: #d4c7b0;
+    --ink: #5a5145;
+    --red: #e3a29c;
+    --red-amber: #ecb98f;
+    --amber: #efd08a;
+    --green: #a6cfac;
+    color: var(--ink);
+    font: 300 14px/1.4 "Inter", "Helvetica Neue", system-ui, sans-serif;
+    letter-spacing: 0.04em;
+}
+
+html,
+body {
+    background: var(--ground);
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    overflow: hidden;
+}
+
+main {
+    height: 100%;
+}
+
+svg {
+    display: block;
+    height: 100%;
+    width: 100%;
+}
+
+.road {
+    fill: var(--road);
+}
+
+.edge,
+.mark,
+.box,
+.stop,
+.lamp {
+    fill: none;
+    stroke: var(--line);
+    stroke-linecap: round;
+    stroke-width: 0.35;
+    vector-effect: none;
+}
+
+.mark {
+    stroke: var(--faint);
+    stroke-dasharray: 2.4 2.4;
+    stroke-width: 0.25;
+}
+
+/* The strip of kerb between the two directions of a road. */
+.median {
+    fill: var(--ground);
+    stroke: var(--line);
+    stroke-width: 0.3;
+}
+
+/* Where one lane gives way to another as it joins it. */
+.give {
+    fill: none;
+    stroke: var(--line);
+    stroke-dasharray: 0.9 0.7;
+    stroke-width: 0.6;
+}
+
+.box {
+    fill: url(#hatch);
+    stroke: var(--faint);
+    stroke-width: 0.25;
+}
+
+.hatch {
+    stroke: var(--faint);
+    stroke-width: 0.2;
+}
+
+/* A stop line is its signal's lamp: it takes the colour of the state. */
+.stop,
+.lamp {
+    stroke-width: 0.5;
+}
+
+.lamp {
+    transition: stroke 0.5s ease, opacity 0.5s ease, stroke-width 0.5s ease;
+}
+
+.lamp.red,
+.lamp.red_amber,
+.lamp.amber,
+.lamp.green {
+    stroke-width: 1.5;
+}
+
+.lamp.red { stroke: var(--red); }
+.lamp.red_amber { stroke: var(--red-amber); }
+.lamp.amber { stroke: var(--amber); }
+.lamp.green { stroke: var(--green); }
+.lamp.inferred { opacity: 0.75; }
+
+/* A sign is drawn at a radius of 1 and scaled, so these widths are shares of its size. */
+.sign * {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sign .plate {
+    fill: var(--ground);
+    stroke: var(--red);
+    stroke-width: 0.17;
+}
+
+.sign .arrow {
+    stroke: var(--ink);
+    stroke-width: 0.13;
+}
+
+.sign .bar {
+    stroke: var(--red);
+    stroke-width: 0.17;
+}
+
+.dot {
+    fill: var(--ink);
+}
+
+#clock {
+    bottom: 2.5vmin;
+    left: 3vmin;
+    margin: 0;
+    position: fixed;
+}
+
+#clock span {
+    opacity: 0.55;
+}

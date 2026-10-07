@@ -26,6 +26,7 @@ from trafficcam.pipeline import Pipeline, run
 from trafficcam.signals import Signals
 from trafficcam.signals.estimator import StageSequenceEstimator
 from trafficcam.signals.lamps import LampRoiObserver
+from trafficcam.signals.published import GroupStates
 from trafficcam.signals.steps import StepFinder
 from trafficcam.sources import Frame, FrameSource
 from trafficcam.speed import SpeedMeter
@@ -191,6 +192,7 @@ def main() -> None:
             signals,
             # A track log carries the signal states that were read when it was recorded.
             replay or observer,
+            GroupStates(config, config_hash, signals) if config.signal_plan else None,
         )
         run(source, pipeline, outputs.observers, outputs.sinks, outputs.recorder)
 

@@ -1,0 +1,11 @@
+{
+  "schema": "group_state/1",
+  "id": "3b0d6a52-7c1e-5f48-9a2d-4e6f8c1b7d93",
+  "ts": "2026-10-07T18:12:30.400Z",
+  "camera": "junction-1",
+  "config_hash": "sha256:9f2c",
+  "group": "west_slip",
+  "state": "red",
+  "source": "inferred",
+  "settled": true
+}

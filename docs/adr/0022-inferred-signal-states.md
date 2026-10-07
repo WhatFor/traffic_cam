@@ -51,7 +51,7 @@ A head whose lamps are faint (0015: a lamp that swings less than 25, as in direc
 
 **A one- or two-lamp head's change is not taken as evidence if a three-lamp head rules it out.** Such a head has no sequence to check its own reading against. The plan says how soon any change can follow or precede another; a change of the south head or the crossing that comes sooner than that after, or before, a change seen on a three-lamp head is counted as a violation and dropped. On the evening of 2026-10-07 the south head showed green for two seconds as the ahead green ended. Believed, it put the slip lane's green end 20 s early, the plan then disagreed with the slip heads, which were right, for 4% of the next 23 minutes, and they were doubted for 43% of it. With the rule, 0.5% and never.
 
-**An inferred state goes on the passage**, with `signal_source = inferred`. Inferred states are not published as signal changes: some are known only seconds after the fact, and the dashboard would need records that arrive out of order.
+**An inferred state goes on the passage**, with `signal_source = inferred`. Inferred states are not published as changes of a head. Since 0023 each group's state, read or inferred, is published in its own record, once as known at once and once as settled 45 s on.
 
 **A closely placed one can raise an event.** `detectors.red_light.inferred_within_s` (1 s) lets a red or an amber count when the change that began it is placed that closely (0016). In practice that is the slip lane's line, whose green end the pedestrian crossing's head places to 0.6 s. The ahead line's green end is placed to 16 s and the north arm's links are guesses 2 s wide, so neither qualifies. The state is dated from the latest it can have begun, so an event's time into red is the least it can be, and the half second of grace comes on top. The event carries `signal_source: inferred`.
 
@@ -126,7 +126,7 @@ Replaying the stored readings of 2026-10-07 through the checks, asked 30 s on:
 - The ahead green's end was the weak place: nothing fixed it but its own head or, 17 to 33 s later, the slip green's end. The step finder is what now places it when the heads cannot be read, and the north arm's start with it. How much of the third of north-arm daytime crossings without a state that recovers is not yet measured.
 - The north arm's links are a guess from its traffic, good to a second or two. A driver who jumps its red looks like its green starting early.
 - The estimator believes the observer. A misread change that nothing contradicts places others wrongly. Two places for one change that cannot both be right are both dropped, and a change read outside a fixed gap is counted, but a lone wrong reading is not caught.
-- Nothing on the Signals dashboard shows inferred states or which heads are doubted. The heads' own published states are still what the observer read, wrong or not.
+- Since 0023 the Signals dashboard shows each group's settled state above the heads. It does not show which heads are doubted. The heads' own published states are still what the observer read, wrong or not.
 - An event from an inferred red has not been seen by the camera as a red lamp. The clip shows the crossing, and the head if it can be made out; the event says it was inferred.
 - A head is given the benefit of the doubt for its first minute of comparisons, and after a restart.
 - The east arm is not estimated: none of its stop lines is in view.

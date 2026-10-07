@@ -17,6 +17,7 @@ from trafficcam.contracts import (
     ClipDeleted,
     ClipKeep,
     Event,
+    GroupState,
     Passage,
     SignalChange,
     Status,
@@ -26,6 +27,7 @@ from trafficcam.contracts import (
 PASSAGES_TOPIC = "trafficcam/v1/passages"
 EVENTS_TOPIC = "trafficcam/v1/events"  # followed by the event's type
 SIGNALS_TOPIC = "trafficcam/v1/signals"  # followed by the head's name
+GROUPS_TOPIC = "trafficcam/v1/groups"  # followed by the group's name, and "/settled"
 CLIPS_TOPIC = "trafficcam/v1/clips"  # followed by the clip's id, and "/deleted" once it is gone
 CLIP_COMMAND_TOPIC = "trafficcam/v1/cmd/clip"
 CLIP_KEEP_TOPIC = "trafficcam/v1/cmd/keep"  # followed by the clip's id; retained
@@ -38,7 +40,7 @@ MAX_QUEUED = 10_000
 CLOSE_TIMEOUT_S = 2.0
 
 
-Record = Passage | Event | SignalChange | Clip | ClipDeleted
+Record = Passage | Event | SignalChange | GroupState | Clip | ClipDeleted
 
 
 class MqttSink:
@@ -90,6 +92,13 @@ class MqttSink:
     def signal(self, change: SignalChange) -> None:
         # Retained, so a new subscriber learns each head's state at once.
         self._publish(f"{SIGNALS_TOPIC}/{change.head_id}", change, retain=True)
+
+    def group_state(self, state: GroupState) -> None:
+        if state.settled:
+            self._publish(f"{GROUPS_TOPIC}/{state.group}/settled", state)
+        else:
+            # Retained, so a new subscriber learns each group's state at once.
+            self._publish(f"{GROUPS_TOPIC}/{state.group}", state, retain=True)
 
     def clip(self, clip: Clip) -> None:
         self._publish(f"{CLIPS_TOPIC}/{clip.id}", clip)

@@ -2,14 +2,14 @@
 
 import uuid
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from trafficcam.config import SiteConfig
 from trafficcam.contracts import SignalChange, SignalSource, SignalState
-from trafficcam.signals.estimator import NullEstimator, PhaseEstimator
+from trafficcam.signals.estimator import NullEstimator, PhaseEstimator, Placed
 from trafficcam.sources import Frame, Rgb
 
 if TYPE_CHECKING:
@@ -186,6 +186,18 @@ class Signals:
         If none is left, it is whatever the estimator can work out, marked as inferred.
         """
         heads = self._config.heads_controlling(target)
+        return self._agreed(heads, at, self._estimator.state_of(target, at))
+
+    def group_state(self, group: str, at: datetime) -> LineState:
+        """The state of a group of the signal plan: heads that change together, or one
+        that cannot be seen. Worked out as a line's is."""
+        plan = self._config.signal_plan
+        heads = plan.groups[group].heads if plan is not None else []
+        return self._agreed(heads, at, self._estimator.state_of_group(group, at)) or UNKNOWN
+
+    def _agreed(
+        self, heads: Sequence[str], at: datetime, inferred: Placed | None
+    ) -> LineState | None:
         known = [
             (head, state, since)
             for head in heads
@@ -198,7 +210,6 @@ class Signals:
         if len(states) > 1:
             return UNKNOWN
         if not states:
-            inferred = self._estimator.state_of(target, at)
             if inferred is None:
                 return UNKNOWN if heads else None
             if inferred.state == SignalState.unknown:

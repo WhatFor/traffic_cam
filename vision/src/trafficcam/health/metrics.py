@@ -14,7 +14,15 @@ from prometheus_client import (
 from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
 from prometheus_client.registry import Collector
 
-from trafficcam.contracts import Clip, ClipDeleted, Event, Passage, SignalChange, SignalState
+from trafficcam.contracts import (
+    Clip,
+    ClipDeleted,
+    Event,
+    GroupState,
+    Passage,
+    SignalChange,
+    SignalState,
+)
 from trafficcam.health.image_quality import measure
 from trafficcam.pipeline import FrameResult
 
@@ -195,6 +203,9 @@ class Metrics:
 
     def signal(self, change: SignalChange) -> None:
         self._signal_changes.labels(head=change.head_id).inc()
+
+    def group_state(self, state: GroupState) -> None:
+        pass
 
     def clip(self, clip: Clip) -> None:
         self._clips.inc()

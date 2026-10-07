@@ -108,6 +108,16 @@ def test_a_track_lost_in_the_junction_has_no_exit_or_movement() -> None:
     assert passage.movement is None
 
 
+def test_a_passage_says_when_it_entered_the_junction_and_its_exit() -> None:
+    (passage,), _ = run(gone(THROUGH))
+
+    # The ground point is first inside the box on frame 12 and inside the exit zone on 22.
+    assert passage.flags["path"] == {
+        "junction_at": at(12).isoformat(),
+        "exit_at": at(22).isoformat(),
+    }
+
+
 def test_flush_closes_open_passages() -> None:
     still_open, _ = run(THROUGH)
     flushed, _ = run(THROUGH, flush=True)
