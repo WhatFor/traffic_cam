@@ -2,6 +2,7 @@
 
 import sys
 from collections.abc import Iterator, Mapping, Sequence
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -10,10 +11,12 @@ from pydantic import TypeAdapter, ValidationError
 
 from trafficcam.inference import COCO_CLASS_IDS
 from trafficcam.signals import Reading
-from trafficcam.sources import Frame
+from trafficcam.sources import Frame, Rgb
 from trafficcam.tracklog import Detection, FrameRecord, Header
 
 _LINE: TypeAdapter[Header | FrameRecord] = TypeAdapter(Header | FrameRecord)
+# More than five minutes of frames, at about 3 kB each.
+_TAIL_BYTES = 24_000_000
 NO_IMAGE = np.empty((0, 0, 3), dtype=np.uint8)
 
 
@@ -28,6 +31,31 @@ def read_track_log(paths: Sequence[Path]) -> Iterator[Header | FrameRecord]:
                     yield _LINE.validate_json(line)
                 except ValidationError as error:
                     raise ValueError(f"{path}:{number}: {error}") from error
+
+
+def recent_lamps(
+    directory: Path, now: datetime, span: timedelta, stale: timedelta
+) -> list[tuple[datetime, Mapping[str, Rgb]]]:
+    """The lamp colours recorded over the last `span`, oldest first, for starting the signal
+    reading where it left off. None at all if the newest is older than `stale`: the light
+    will have changed. Only the end of the newest files is read, not the hours before it.
+    """
+    frames: list[tuple[datetime, Mapping[str, Rgb]]] = []
+    for path in sorted(directory.glob("*.jsonl"))[-2:]:
+        with path.open("rb") as file:
+            file.seek(max(0, file.seek(0, 2) - _TAIL_BYTES))
+            # The first line is cut short wherever the reading began, and the last may be too.
+            lines = file.read().split(b"\n")[1:-1]
+        for line in lines:
+            if b'"lamps":{"' not in line:
+                continue
+            try:
+                record = _LINE.validate_json(line)
+            except ValidationError:
+                continue
+            if isinstance(record, FrameRecord) and now - record.ts <= span:
+                frames.append((record.ts, record.lamps))
+    return frames if frames and now - frames[-1][0] <= stale else []
 
 
 def to_detections(recorded: Sequence[Detection]) -> sv.Detections:

@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import signal
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from trafficcam.clips import PacketRing
@@ -26,13 +27,18 @@ from trafficcam.signals import Signals
 from trafficcam.signals.estimator import StageSequenceEstimator
 from trafficcam.signals.lamps import LampRoiObserver
 from trafficcam.signals.steps import StepFinder
-from trafficcam.sources import FrameSource
+from trafficcam.sources import Frame, FrameSource
 from trafficcam.speed import SpeedMeter
 from trafficcam.timesync import wait_for_clock_sync
 from trafficcam.tracking.bytetrack import ByteTracker
-from trafficcam.tracklog.replay import TrackLogReplay
+from trafficcam.tracklog.replay import NO_IMAGE, TrackLogReplay, recent_lamps
 
 LORES_SIZE = (1280, 960)
+# At a start, the signal reading is shown this much of what was recorded before it, unless
+# the newest of that is older than a restart takes.
+PRIME_FROM = timedelta(minutes=5)
+PRIME_STALE = timedelta(minutes=2)
+PRIME_PING_EVERY = 500
 LIVE_BITRATE = 6_000_000
 # MediaMTX listens here for the `cam` path (deploy/mediamtx/mediamtx.yml).
 LIVE_URL = "udp://127.0.0.1:1234?pkt_size=1316"
@@ -62,6 +68,23 @@ def parse_args() -> argparse.Namespace:
         "--metrics-port", type=int, metavar="PORT", help="serve Prometheus metrics on localhost"
     )
     return parser.parse_args()
+
+
+def prime_signals(
+    directory: Path, observer: LampRoiObserver, signals: Signals, watchdog: Watchdog
+) -> int:
+    """Show the signal reading the lamp colours recorded just before this start, so that a
+    restart does not leave every head unknown until it has been seen lit and unlit again.
+
+    The changes this turns up were published when they happened, and are not sent again.
+    """
+    frames = recent_lamps(directory, datetime.now(UTC), PRIME_FROM, PRIME_STALE)
+    for index, (timestamp, lamps) in enumerate(frames):
+        frame = Frame(index=-1, timestamp=timestamp, image=NO_IMAGE, samples=lamps)
+        signals.update(timestamp, observer.read(frame), lamps)
+        if index % (PRIME_PING_EVERY) == 0:
+            watchdog.ping()
+    return len(frames)
 
 
 def open_source(config: SiteConfig, video: Path | None, ring: PacketRing | None) -> FrameSource:
@@ -155,6 +178,10 @@ def main() -> None:
         if outputs.metrics is not None:
             outputs.metrics.watch_doubted_heads(list(config.signal_heads), lambda: signals.doubted)
         speeds = SpeedMeter(config.detectors.speed) if config.detectors.speed else None
+        observer = LampRoiObserver(config)
+        if live and args.record_tracks is not None:
+            primed = prime_signals(args.record_tracks, observer, signals, watchdog)
+            print(f"signals start from {primed} recorded frames", flush=True)
         pipeline = Pipeline(
             backend,
             ByteTracker(config.tracking, config.camera.fps),
@@ -163,7 +190,7 @@ def main() -> None:
             open_detectors(config, config_hash, signals),
             signals,
             # A track log carries the signal states that were read when it was recorded.
-            replay or LampRoiObserver(config),
+            replay or observer,
         )
         run(source, pipeline, outputs.observers, outputs.sinks, outputs.recorder)
 

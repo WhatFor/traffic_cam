@@ -20,7 +20,7 @@ from trafficcam.pipeline import FrameResult
 from trafficcam.sources import Frame, Rgb
 from trafficcam.tracklog import FrameRecord, Header
 from trafficcam.tracklog import writer as writer_module
-from trafficcam.tracklog.replay import TrackLogReplay, read_track_log, to_detections
+from trafficcam.tracklog.replay import TrackLogReplay, read_track_log, recent_lamps, to_detections
 from trafficcam.tracklog.writer import TrackLogWriter
 
 HOUR = datetime(2026, 10, 4, 13, tzinfo=UTC)
@@ -300,3 +300,64 @@ def test_a_log_from_before_signals_were_read_replays_with_none(tmp_path: Path) -
     replay = TrackLogReplay([path], CONFIG_HASH)
 
     assert [dict(replay.read(frame)) for frame in replay.frames()] == [{}]
+
+
+def with_lamps(index: int, timestamp: datetime, lamps: Mapping[str, Rgb]) -> FrameResult:
+    result = empty_result(index, timestamp)
+    return dataclasses.replace(result, frame=dataclasses.replace(result.frame, samples=lamps))
+
+
+def test_the_lamp_colours_of_the_last_while_are_read_from_the_end_of_the_log(
+    tmp_path: Path,
+) -> None:
+    lamps = {"near/red": (80.0, 40.0, 50.0)}
+    record(
+        tmp_path,
+        [with_lamps(second, HOUR + timedelta(seconds=second), lamps) for second in range(10)],
+    )
+    now = HOUR + timedelta(seconds=10)
+    minute, restart = timedelta(minutes=1), timedelta(minutes=2)
+
+    recent = recent_lamps(tmp_path, now, timedelta(seconds=5), restart)
+    assert [at for at, _ in recent] == [HOUR + timedelta(seconds=s) for s in range(5, 10)]
+    assert recent[0][1] == lamps
+
+    # Left for an hour, what was recorded says nothing of the light now.
+    assert recent_lamps(tmp_path, now + timedelta(hours=1), minute, restart) == []
+    assert recent_lamps(tmp_path / "nowhere", now, minute, restart) == []
+
+
+def test_a_start_picks_up_the_signal_reading_where_the_last_run_left_it(tmp_path: Path) -> None:
+    from test_signals import CONFIG as SIGNALS
+    from test_signals import cycles, samples_for
+
+    from trafficcam.__main__ import prime_signals
+    from trafficcam.health.watchdog import Watchdog
+    from trafficcam.signals import Signals
+    from trafficcam.signals.lamps import LampRoiObserver
+
+    # Two minutes of a head going through its cycle, recorded up to five seconds ago.
+    lit = cycles(7)
+    began = datetime.now(UTC) - timedelta(seconds=5 + len(lit) / 15)
+    showing = [
+        {
+            name: rgb
+            for head in SIGNALS.signal_heads
+            for name, rgb in samples_for(head, each).items()
+        }
+        for each in lit
+    ]
+    writer = writer_for(tmp_path, wait_when_full=True)
+    for index, lamps in enumerate(showing):
+        writer.observe(with_lamps(index, began + timedelta(seconds=index / 15), lamps))
+    writer.close()
+
+    observer, signals = LampRoiObserver(SIGNALS), Signals(SIGNALS, CONFIG_HASH)
+    primed = prime_signals(tmp_path, observer, signals, Watchdog(lambda _: None, None))
+
+    assert primed == len(lit)
+    # The next frame from the camera is read at once, where a cold start reads nothing for
+    # a cycle or more.
+    frame = Frame(0, datetime.now(UTC), NO_IMAGE, showing[-1])
+    assert observer.read(frame)["near"].state == SignalState.red_amber
+    assert LampRoiObserver(SIGNALS).read(frame)["near"].state == SignalState.unknown
