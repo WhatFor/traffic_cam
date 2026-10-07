@@ -1,6 +1,7 @@
 :root {
     --ground: #f4ede1;
     --road: #ece3d3;
+    --building: #f0ebe2;
     --line: #b8a98f;
     --faint: #d4c7b0;
     --ink: #5a5145;
@@ -48,6 +49,13 @@ svg {
     stroke-linecap: round;
     stroke-width: 0.35;
     vector-effect: none;
+}
+
+/* Made up, to give the roads something to run between. */
+.building {
+    fill: var(--building);
+    stroke: var(--faint);
+    stroke-width: 0.2;
 }
 
 .mark {
@@ -113,7 +121,7 @@ svg {
 }
 
 .sign .plate {
-    fill: var(--ground);
+    fill: none;
     stroke: var(--red);
     stroke-width: 0.17;
 }

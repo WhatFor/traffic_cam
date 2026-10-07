@@ -55,6 +55,7 @@ function draw(junction) {
     const hatch = make("pattern", { id: "hatch", width: 2.4, height: 2.4, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, make("defs", {}));
     make("line", { class: "hatch", x1: 0, y1: 0, x2: 0, y2: 2.4 }, hatch);
     make("path", { class: "road", d: junction.road });
+    for (const [x, y, width, height] of junction.buildings ?? []) make("rect", { class: "building", x, y, width, height });
     for (const d of junction.marks) make("path", { class: "mark", d });
     for (const d of junction.medians ?? []) make("path", { class: "median", d });
     make("path", { class: "box", d: junction.box });
