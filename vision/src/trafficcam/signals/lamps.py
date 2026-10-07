@@ -25,11 +25,18 @@ HOLD_UNCHECKED = timedelta(seconds=2)
 # A lamp's lit and unlit levels are learned from this much of its own recent history, so
 # they follow the light through the day. It spans several signal cycles.
 LEVEL_WINDOW_S = 300
-# A lamp's levels are trusted once its history spans at least this much and falls into
-# two groups, with few readings in the middle third between them. A lamp that has only
-# been seen unlit so far has a narrower spread, or one without the gap.
-MIN_SWING = 30.0
+# A lamp's levels are trusted once its history falls into two groups this far apart, with
+# few readings in the middle third between them and neither group too small to be a state
+# of the lamp. In daylight a lit lamp scores 25 to 100 above an unlit one, at night 100 to
+# 200. A lamp that has only been seen unlit has one group, or a second made of a few
+# readings from something passing behind it.
+MIN_SWING = 15.0
 MAX_MIDDLE_SHARE = 0.1
+MIN_GROUP_SHARE = 0.02
+# A lamp also has to swing at least this share of what the strongest lamp on its head
+# does. At night the glow of the lamp next to it moves an unlit lamp's score by a tenth
+# of that; without this, that glow passes for the lamp being lit until it really is.
+MIN_SHARE_OF_STRONGEST = 0.25
 
 SEQUENCE = {
     SignalState.red: SignalState.red_amber,
@@ -49,14 +56,16 @@ def lamp_score(rgb: Rgb, colour: str) -> float:
     """How lit a lamp looks, from its mean colour.
 
     A lit red is dim but strongly red, so brightness alone confuses it with a pale vehicle
-    passing behind the head. Amber needs green as well as red, or the glow of the red lamp
-    just above it counts. Green washes out towards white, so it is scored mostly on brightness.
+    passing behind the head. Amber needs some green as well as red, or the night-time glow
+    of the red lamp just above it counts; only some, because in daylight a lit amber shows
+    as a dull red with half as much green. Green washes out towards white, so it is scored
+    mostly on brightness.
     """
     r, g, b = rgb
     if colour == "red":
         return r - max(g, b)
     if colour == "amber":
-        return min(r, g) - b / 2
+        return min(r, 2 * g) - b / 2
     return g - r / 2
 
 
@@ -67,17 +76,42 @@ class LampLevels:
         self._scores: deque[float] = deque(maxlen=LEVEL_WINDOW_S * fps)
         self._refresh_every = fps
         self._low = self._high = 0.0
-        self.established = False
+        # Whether the history shows two states. The head decides whether to trust them.
+        self.separated = False
+
+    @property
+    def swing(self) -> float:
+        return self._high - self._low
 
     def add(self, score: float) -> None:
         self._scores.append(score)
         if len(self._scores) % self._refresh_every == 1:
-            scores = np.fromiter(self._scores, dtype=np.float32)
-            # Wide percentiles: amber, or a pedestrian green, is lit for a few seconds a cycle.
-            self._low, self._high = (float(level) for level in np.percentile(scores, [2, 99]))
-            swing = self._high - self._low
-            middle = (scores > self._low + swing / 3) & (scores < self._high - swing / 3)
-            self.established = swing >= MIN_SWING and middle.mean() <= MAX_MIDDLE_SHARE
+            self._learn(np.fromiter(self._scores, dtype=np.float32))
+
+    def _learn(self, scores: np.ndarray) -> None:
+        """Split the history into an unlit and a lit group, and take each one's middle.
+
+        Percentiles alone would do if the history held nothing else. It does: a dark
+        vehicle behind a lamp reads below unlit and a pale one above lit, for a few
+        seconds at a time. The middle of each group ignores them.
+        """
+        low, high = (float(level) for level in np.percentile(scores, [2, 99]))
+        smaller = 0
+        for _ in range(3):
+            lit = scores > (low + high) / 2
+            if not lit.any() or lit.all():
+                break
+            low, high = float(np.median(scores[~lit])), float(np.median(scores[lit]))
+            smaller = int(min(lit.sum(), len(scores) - lit.sum()))
+        self._low, self._high = low, high
+        swing = high - low
+        middle = (scores > low + swing / 3) & (scores < high - swing / 3)
+        self.separated = (
+            swing >= MIN_SWING
+            # A second of readings at the least, and more as the history grows.
+            and smaller >= max(self._refresh_every, MIN_GROUP_SHARE * len(scores))
+            and middle.mean() <= MAX_MIDDLE_SHARE
+        )
 
     def margin(self, score: float) -> float:
         """Signed distance from the threshold, as a share of half the swing: above 0 is lit."""
@@ -133,14 +167,20 @@ class LampRoiObserver:
         }
 
     def _read(self, name: str, head: _Head, config: SignalHead, frame: Frame) -> Reading:
-        margins = {}
+        scores = {}
         for colour, levels in head.lamps.items():
-            score = lamp_score(frame.samples[f"{name}/{colour}"], colour)
-            levels.add(score)
-            margins[colour] = levels.margin(score) if levels.established else None
-        if None in margins.values():
-            seen, confidence = SignalState.unknown, None
-        else:
+            scores[colour] = lamp_score(frame.samples[f"{name}/{colour}"], colour)
+            levels.add(scores[colour])
+        strongest = max((lamp.swing for lamp in head.lamps.values() if lamp.separated), default=0.0)
+        margins = {
+            colour: levels.margin(scores[colour])
+            for colour, levels in head.lamps.items()
+            if levels.separated and levels.swing >= MIN_SHARE_OF_STRONGEST * strongest
+        }
+        # A head with a lamp that cannot be told lit from unlit is not read at all: a hooded
+        # red in daylight, or any lamp that has not yet shown both states.
+        seen, confidence = SignalState.unknown, None
+        if len(margins) == len(head.lamps):
             lit = frozenset(colour for colour, margin in margins.items() if margin > 0)
             seen = state_for(lit, frozenset(config.lamps))
             confidence = min(1.0, min(abs(margin) for margin in margins.values()))

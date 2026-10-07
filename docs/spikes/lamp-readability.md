@@ -87,25 +87,43 @@ Not yet known:
 
 - Score red by colour, amber and green mostly by brightness.
 - Compare lamps within a head, as the build plan says, and treat an impossible combination as `unknown`. Do not believe an out-of-sequence change until it has lasted.
-- Sample no more than 5x5 px, and 3x3 px on heads under about 8 px lamp spacing.
+- Sample 3x3 px on the lamp's centre, measured by day. (This said 5x5 on the larger heads until the daylight clip showed that only glow had made that work.)
 
 What was built from this, and how it did on its first two hours live, is in `docs/adr/0015-signal-states-from-lamp-colour.md`. That includes the check of the head mapping above against 92 cycles of crossings.
 
-## To do: daytime
+## Overcast morning, 2026-10-07 08:53 (2,998 frames, 200 s)
 
-Left for 2026-10-07 or the next clear day. Two clips, because the two daytime risks happen at different times:
+The live observer had read every head all night and lost most of them at 08:00: 33 to 58% of the hour unknown on the five west heads, and the south head's greens halved. On this clip the observer as it stood read two heads of seven.
 
-1. **Around midday**, for short exposures and LED flicker. Record three minutes:
+What is different in daylight:
 
-   ```sh
-   ffmpeg -rtsp_transport tcp -i rtsp://<pi>:8554/cam -t 180 -c copy calibration/clip_day.mp4
-   ```
+- **A lamp shows without glow.** At dusk and night a lit lamp blooms to 6 or 7 px across; by day it is the lamp itself, 3 or 4 px. Squares that sat 2 px off a lamp's centre, or were 5x5, had been reading the glow. By day they read mostly housing: lit minus unlit fell to a quarter.
+- **The camera's view had also moved**, by 0.5 px left and 1.3 px up, between the night clip and this one (measured on fixed structure at seven places). Enough to matter only because of the first point.
+- **Lit lamps are far dimmer against the scene.** Lit minus unlit is 25 to 135 by day against 100 to 240 at night. The observer wanted at least 30 before it trusted a lamp.
+- **Amber is a dull red**: about (82, 50, 59), with half the green it has at night. `min(r, g) - b/2` gave it 6 to 45 over unlit.
+- **Things pass behind the lamps.** A dark vehicle reads below unlit and a pale one above lit, for seconds at a time. The 2nd and 99th percentiles took those for the lamp's levels, which put its real unlit or lit level in the middle and stopped it being trusted.
+- **E's red cannot be seen at all** by day: 12 over unlit, inside the noise. It is hooded and side-on.
 
-2. **Late afternoon with the sun out and low behind the camera** (about 16:30 to 17:30 in October), for sun lighting unlit lamps. Same command, to `calibration/clip_low_sun.mp4`.
-3. Run `measure` on each, as below. If the camera has moved since 2026-10-06, run `find` first; the positions in `lamps.json` are for that pose.
-4. Look at, per head: dark frames among lit ones (flicker), unlit scores rising towards lit ones (sun), and whether the sequence still comes out in order.
-5. Check the same on the live observer: its share of `unknown` per head through the day is on the Signals dashboard.
-6. Add a "Day" section here and update the conclusion. If a head fails in daylight, the options are a longer vote, a smaller sample, or the full-resolution read path from the build plan.
+Flicker was not a problem: no dark frames among lit ones on any lamp.
+
+What was changed, and the result on all three clips (states compared with the truth frame by frame, after each head's first reading):
+
+| | Day: heads read | Day: unknown | Dusk and night: wrong states |
+| --- | --- | --- | --- |
+| As it stood | 2 of 7 fully, 2 partly | 10% overall | none |
+| Squares re-centred, 3x3 | 5 of 7 | 0.7% | none |
+| ... and amber as `min(r, 2g) - b/2` | 6 of 7, one wrong for 2.5 s at a dusk start | | |
+| ... and levels from the middles of two groups, with the checks below | 6 of 7 | 0% | none |
+
+- **Squares**: every lamp's centre was measured from the difference between the head's mean picture with the lamp lit and with it unlit, by day. All are now 3x3 on that centre.
+- **Amber**: `min(r, 2g) - b/2`. Lit minus unlit by day rose from 6 to 37 on the weakest head; at night red glow in the amber square stays under 13% of a lit amber.
+- **Levels**: the history is split into two groups and each group's median is its level, so what passes behind a lamp no longer sets them. A lamp is trusted when the groups are 15 apart, each has a second of readings and 2% of the history, and few readings lie between.
+- **Glow check**: a lamp must also swing a quarter as much as the strongest lamp on its head. With the lower limit of 15, the glow of a neighbouring lamp at night would otherwise pass for a lamp being lit until it first really was.
+- **E by day** is left unread. Reading only its green was tried and dropped: it would say green for a second after the others had gone to amber, and the stop line's state would be unknown for that second.
+
+The dusk and night clips were filmed before the view moved, so running them with today's squares is also a test of a 1.3 px drift at night: no change.
+
+Still to check: low sun behind the camera on a clear afternoon (about 16:30 to 17:30 in October), which this morning could not show.
 
 ## Running it on another clip
 

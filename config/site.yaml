@@ -82,29 +82,31 @@ movements:
   right_from_south: { from: approach_south, to: exit_east }
   right_from_west: { from: approach_west, to: exit_south }
   left_from_south: { from: approach_south, to: exit_west }
-# Lamp squares are [x, y, w, h] in full-frame pixels, found with tools/lamp_spike.py. The letters
-# are the ones used in docs/spikes/lamp-readability.md.
+# Lamp squares are [x, y, w, h] in full-frame pixels. Each is 3x3 on the middle of its lamp, as
+# measured in daylight, when a lamp shows without glow: by day a lamp is only 3 or 4 pixels
+# across and a square that is 2 pixels off misses it. The letters are the ones used in
+# docs/spikes/lamp-readability.md, which says how the squares were found.
 signal_heads:
   west_north_near:  # A
-    lamps: { red: [592, 746, 5, 5], amber: [593, 755, 5, 5], green: [592, 766, 5, 5] }
+    lamps: { red: [593, 746, 3, 3], amber: [594, 755, 3, 3], green: [594, 764, 3, 3] }
     controls: [stopline_west_northbound]
   west_north_far:  # B
-    lamps: { red: [793, 701, 5, 5], amber: [792, 711, 5, 5], green: [792, 718, 5, 5] }
+    lamps: { red: [792, 701, 3, 3], amber: [793, 710, 3, 3], green: [794, 718, 3, 3] }
     controls: [stopline_west_northbound]
   west_ahead_left:  # C
-    lamps: { red: [815, 764, 5, 5], amber: [815, 773, 5, 5], green: [815, 784, 5, 5] }
+    lamps: { red: [815, 763, 3, 3], amber: [816, 772, 3, 3], green: [816, 782, 3, 3] }
     controls: [stopline_west_eastbound]
-  west_ahead_right:  # E: its red is dim, the hood hides most of it
-    lamps: { red: [1044, 813, 3, 3], amber: [1043, 822, 3, 3], green: [1044, 831, 3, 3] }
+  west_ahead_right:  # E: hooded and side-on; in daylight its red cannot be seen, only its green
+    lamps: { red: [1043, 811, 3, 3], amber: [1044, 821, 3, 3], green: [1043, 831, 3, 3] }
     controls: [stopline_west_eastbound]
   west_ahead_far:  # G: far side, small
-    lamps: { red: [1428, 483, 3, 3], amber: [1426, 489, 3, 3], green: [1425, 496, 3, 3] }
+    lamps: { red: [1426, 483, 3, 3], amber: [1426, 489, 3, 3], green: [1426, 496, 3, 3] }
     controls: [stopline_west_eastbound]
   south:  # D: seen from the side; only its green arrows can be read
-    lamps: { green: [971, 640, 3, 3] }
+    lamps: { green: [972, 638, 3, 3] }
     controls: [right_from_south, left_from_south]
-  crossing_west_exit:  # F: pedestrian signal
-    lamps: { red: [1091, 886, 3, 3], green: [1091, 895, 3, 3] }
+  crossing_west_exit:  # F: pedestrian signal; its red and green figures are 5 pixels apart
+    lamps: { red: [1092, 887, 3, 3], green: [1091, 892, 3, 3] }
     controls: []
 
 detectors:

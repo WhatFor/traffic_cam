@@ -26,6 +26,9 @@ RED, RED_AMBER, GREEN, AMBER, UNKNOWN = (
 # Colours measured on real heads at dusk (docs/spikes/lamp-readability.md).
 LIT: dict[str, Rgb] = {"red": (170, 19, 41), "amber": (163, 88, 34), "green": (100, 193, 159)}
 UNLIT: Rgb = (30, 30, 34)
+# The same lamps under an overcast morning sky: far dimmer, and amber a dull red.
+LIT_BY_DAY: dict[str, Rgb] = {"red": (84, 40, 57), "amber": (82, 50, 59), "green": (93, 152, 132)}
+UNLIT_BY_DAY: Rgb = (33, 36, 45)
 NO_IMAGE = np.empty((0, 0, 3), dtype=np.uint8)
 
 # The geometry test site with four heads: two on the stop line, one whose red cannot be
@@ -91,8 +94,15 @@ def runs(readings: list[Reading]) -> Iterator[tuple[SignalState, int]]:
 def test_a_red_glow_is_not_amber_and_a_pale_vehicle_is_not_red() -> None:
     red_glow, pale = (150, 20, 40), (200, 200, 200)
 
-    assert lamp_score(red_glow, "amber") < 10 < lamp_score(LIT["amber"], "amber")
+    # Glow happens at night, so it is the night's lit amber it must stay well below.
+    assert lamp_score(red_glow, "amber") < lamp_score(LIT["amber"], "amber") / 4
     assert lamp_score(pale, "red") < 10 < lamp_score(LIT["red"], "red")
+
+
+def test_a_dull_daytime_amber_still_stands_out_from_an_unlit_lamp() -> None:
+    by_day = lamp_score(LIT_BY_DAY["amber"], "amber") - lamp_score(UNLIT_BY_DAY, "amber")
+
+    assert by_day > 30
 
 
 def test_levels_wait_until_a_lamp_has_been_seen_lit_and_unlit() -> None:
@@ -101,12 +111,40 @@ def test_levels_wait_until_a_lamp_has_been_seen_lit_and_unlit() -> None:
 
     for score in noise:
         levels.add(float(score))
-    assert not levels.established
+    assert not levels.separated
 
     for score in [120.0] * (3 * FPS) + [5.0] * FPS:
         levels.add(score)
-    assert levels.established
+    assert levels.separated
     assert levels.margin(120.0) > 0 > levels.margin(5.0)
+
+
+def test_levels_are_the_middles_of_the_two_states_whatever_passes_behind() -> None:
+    rng = np.random.default_rng(0)
+    levels = LampLevels(FPS)
+    unlit, lit, dark_vehicle, pale_vehicle = 33.0, 58.0, 18.0, 90.0
+    # A daytime lamp that swings by 25, with something darker behind it for a few seconds
+    # in every minute and something paler now and then.
+    minute = (
+        [unlit] * (48 * FPS) + [dark_vehicle] * (4 * FPS) + [lit] * (7 * FPS) + [pale_vehicle] * FPS
+    )
+    for score in minute * 3:
+        levels.add(score + float(rng.normal(0, 1.5)))
+
+    assert levels.separated
+    assert levels.swing == pytest.approx(lit - unlit, abs=2)
+    assert levels.margin(lit) == pytest.approx(1, abs=0.2)
+    assert levels.margin(unlit) == pytest.approx(-1, abs=0.2)
+
+
+def test_a_few_stray_readings_are_not_a_state() -> None:
+    levels = LampLevels(FPS)
+
+    # Unlit for two minutes, but for a second of it a headlight is in the square.
+    for score in [5.0] * (60 * FPS) + [70.0] * FPS + [5.0] * (60 * FPS):
+        levels.add(score)
+
+    assert not levels.separated
 
 
 @pytest.mark.parametrize(
@@ -288,3 +326,66 @@ def test_readings_for_heads_the_config_does_not_have_are_ignored() -> None:
     signals = Signals(CONFIG, "sha256:test")
 
     assert signals.update(at(0), {"removed_head": Reading(RED, at(0))}) == []
+
+
+def follow(head: str, colours_by_frame: list[dict[str, Rgb]]) -> list[Reading]:
+    """One head's readings as each lamp shows the colour given for it, frame by frame."""
+    observer = LampRoiObserver(CONFIG)
+    dark = {key: UNLIT for other in CONFIG.signal_heads for key in samples_for(other, set())}
+    return [
+        observer.read(
+            Frame(
+                index,
+                at(index),
+                NO_IMAGE,
+                dark | {f"{head}/{lamp}": colour for lamp, colour in colours.items()},
+            )
+        )[head]
+        for index, colours in enumerate(colours_by_frame)
+    ]
+
+
+def by_day(lit: set[str]) -> dict[str, Rgb]:
+    return {
+        lamp: LIT_BY_DAY[lamp] if lamp in lit else UNLIT_BY_DAY
+        for lamp in ("red", "amber", "green")
+    }
+
+
+def test_the_cycle_is_read_in_daylight_colours() -> None:
+    readings = follow("near", [by_day(lit) for lit in cycles(3)])
+
+    seen = list(runs(readings))
+    assert [state for state, _ in seen[-8:]] == [GREEN, AMBER, RED, RED_AMBER] * 2
+    assert [frames for _, frames in seen[-8:-4]] == [int(seconds * FPS) for _, seconds in CYCLE]
+
+
+def test_the_glow_of_the_lamp_beside_it_does_not_light_a_lamp() -> None:
+    # A night-time start during green: red has not been lit yet, but when amber comes on its
+    # glow lifts the red square a little. That is not red and amber together.
+    glow_on_red: Rgb = (60, 40, 44)
+    start = [LAMPS_LIT[GREEN]] * (6 * FPS) + [LAMPS_LIT[AMBER]] * (3 * FPS)
+    colours = [
+        {
+            lamp: LIT[lamp]
+            if lamp in lit
+            else (glow_on_red if lamp == "red" and "amber" in lit else UNLIT)
+            for lamp in ("red", "amber", "green")
+        }
+        for lit in start
+    ]
+
+    readings = follow("near", colours)
+
+    assert {reading.state for reading in readings} <= {UNKNOWN, GREEN, AMBER}
+    assert RED_AMBER not in {reading.state for reading in readings}
+
+
+def test_a_head_whose_red_cannot_be_seen_is_not_read() -> None:
+    # A hooded head in daylight: its red lamp looks the same lit or not. Reading its green
+    # alone would leave it saying green for a moment after the others have gone to amber.
+    colours = [by_day(lit) | {"red": UNLIT_BY_DAY} for lit in cycles(3)]
+
+    readings = follow("near", colours)
+
+    assert {reading.state for reading in readings} == {UNKNOWN}

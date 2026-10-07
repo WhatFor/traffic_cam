@@ -42,14 +42,14 @@ def lamp_score(rgb: np.ndarray, colour: str) -> np.ndarray:
     """How lit a lamp looks, from its mean colour.
 
     A lit red is dim but strongly red, so brightness alone confuses it with a pale vehicle
-    passing behind the head. Amber needs green as well as red, or the glow of the red lamp
-    just above it counts. Green washes out towards white, so it is scored mostly on brightness.
+    passing behind the head. Amber needs some green as well as red, or the glow of the red
+    lamp just above it counts; only some, because in daylight amber shows as a dull red. Green washes out towards white, so it is scored mostly on brightness.
     """
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
     if colour == "red":
         return r - np.maximum(g, b)
     if colour == "amber":
-        return np.minimum(r, g) - b / 2
+        return np.minimum(r, 2 * g) - b / 2
     return g - r / 2
 
 
