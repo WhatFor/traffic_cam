@@ -187,6 +187,10 @@ Not fixed in the reading itself. What was needed was a reading that follows the 
 
 Still to check: low sun behind the camera on a clear afternoon (about 16:30 to 17:30 in October).
 
+## Correction, 2026-10-07 evening
+
+The live failures this note set out to explain, on the overcast morning and in the sunshine, were made far worse by a fault in the observer: each lamp's levels stopped being relearned five minutes after the service started (ADR 0015). The clips above were read from a cold start and are at most eight minutes long, so what they show about the light is sound, but "levels learned over five minutes are then wrong for much of the time" understates it: live, the levels were whatever they had been five minutes after the last restart. How the reading does in sunshine with that fixed is still to be seen, and can now be replayed from the lamp colours kept in the track log.
+
 ## Running it on another clip
 
 ```sh

@@ -34,6 +34,8 @@ class Reading(NamedTuple):
     state: SignalState
     since: datetime  # the first frame it showed this
     confidence: float | None = None
+    # Its lamps are barely above unlit, as in direct sunshine: read, but not to be relied on.
+    faint: bool = False
 
 
 class SignalReader(Protocol):
@@ -79,7 +81,8 @@ class Signals:
 
     Where no head can say what a line is under, the estimator is asked. A head that keeps
     contradicting the plan of the signals is doubted: where the plan rules out what it
-    shows, it is left out, and what it is seen to do is not passed to the estimator.
+    shows, it is left out, and what it is seen to do is not passed to the estimator. So is
+    a head whose lamps are faint, from the start.
     """
 
     def __init__(
@@ -94,6 +97,7 @@ class Signals:
         # Looks in the lamps' own scores for the changes the estimator places only loosely.
         self._steps = steps
         self._credit = _Credit()
+        self._faint: set[str] = set()
         self._checked_at: datetime | None = None
         self._camera = config.camera.id
         self._config_hash = config_hash
@@ -112,6 +116,7 @@ class Signals:
         if self._steps is not None and samples:
             self._steps.add(timestamp, samples)
         changes = []
+        self._faint = {head for head, reading in readings.items() if reading.faint}
         for head, reading in readings.items():
             if head not in self._history:
                 continue
@@ -122,7 +127,7 @@ class Signals:
             # A reading can only be dated after what is already recorded.
             since = max(reading.since, history[-1][0]) if history else reading.since
             history.append((since, reading.state))
-            if head not in self._credit.doubted:
+            if head not in self.doubted:
                 self._estimator.observe(head, previous, reading.state, since)
             while len(history) > 2 and timestamp - history[1][0] > KEEP:
                 del history[0]
@@ -153,7 +158,7 @@ class Signals:
     @property
     def doubted(self) -> frozenset[str]:
         """The heads whose readings are not believed where the plan rules them out."""
-        return frozenset(self._credit.doubted)
+        return frozenset(self._credit.doubted | self._faint)
 
     def current(self) -> dict[str, SignalState]:
         return {
@@ -233,7 +238,7 @@ class Signals:
                 self._estimator.found(loose.group, loose.edge, found.at)
 
     def _overruled(self, head: str, state: SignalState, at: datetime) -> bool:
-        if head not in self._credit.doubted:
+        if head not in self.doubted:
             return False
         planned = self._estimator.state_for_head(head, at)
         return planned is not None and planned.state not in (SignalState.unknown, state)

@@ -3,7 +3,7 @@
 default:
     @just --list
 
-# Publish ingest and web; push deploy/ (including .env), vision/ and config/ to the Pi; update the Compose stack and the host services
+# Publish ingest and web; push deploy/ (including .env), vision/ and config/ to the Pi; update the Compose stack, and restart vision if it changed
 [arg("target", long="target", help="SSH destination of the Pi, as user@host")]
 deploy target:
     #!/usr/bin/env bash
@@ -16,11 +16,17 @@ deploy target:
         --self-contained false --output deploy/web --nologo --verbosity quiet
 
     # Top-level directories with changed files; each is named after its service.
-    changed=$(rsync -az --delete --mkpath --itemize-changes deploy/ {{target}}:trafficcam/deploy/ \
-        | awk '$1 ~ /^<f/ && $2 ~ /\// { sub(/\/.*/, "", $2); print $2 }' | sort -u)
-    rsync -az --delete --mkpath --exclude .venv --exclude __pycache__ --exclude '.*_cache' \
-        vision/ {{target}}:trafficcam/vision/
-    rsync -az --delete --mkpath config/ {{target}}:trafficcam/config/
+    sent=$(rsync -az --delete --mkpath --itemize-changes deploy/ {{target}}:trafficcam/deploy/)
+    changed=$(awk '$1 ~ /^<f/ && $2 ~ /\// { sub(/\/.*/, "", $2); print $2 }' <<<"$sent" | sort -u)
+    # Vision is restarted only if something it runs from was sent: its code, the site config,
+    # its unit or its environment. A restart blanks the signals and the clip buffer for minutes.
+    sent+=$(rsync -az --delete --mkpath --itemize-changes --exclude .venv --exclude __pycache__ \
+        --exclude '.*_cache' vision/ {{target}}:trafficcam/vision/ | sed 's|^\(\S* \)|\1vision/|')
+    sent+=$(rsync -az --delete --mkpath --itemize-changes config/ {{target}}:trafficcam/config/ \
+        | sed 's|^\(\S* \)|\1config/|')
+    if grep -qE '^(<f|\*deleting)\S* +(vision/|config/|systemd/|\.env$)' <<<"$sent"; then
+        changed+=" vision"
+    fi
 
     ssh {{target}} bash -s -- $changed <<'EOF'
     set -euo pipefail
@@ -46,7 +52,11 @@ deploy target:
     install -D -m 644 -t ~/.config/systemd/user ../deploy/systemd/*.service
     systemctl --user daemon-reload
     systemctl --user enable trafficcam-vision trafficcam-throttled
-    systemctl --user restart trafficcam-vision trafficcam-throttled
+    if [[ " $* " == *" vision "* ]] || ! systemctl --user is-active --quiet trafficcam-vision; then
+        systemctl --user restart trafficcam-vision trafficcam-throttled
+    else
+        echo "vision left running: nothing it runs from has changed"
+    fi
     EOF
 
 # Create or update vision/.venv from the lockfile

@@ -146,6 +146,37 @@ def test_levels_are_the_middles_of_the_two_states_whatever_passes_behind() -> No
     assert levels.margin(unlit) == pytest.approx(-1, abs=0.2)
 
 
+def test_levels_go_on_following_the_light_after_the_history_is_full() -> None:
+    levels = LampLevels(FPS, MIN_SWING)
+    cycle = [5.0] * (20 * FPS) + [60.0] * (10 * FPS)
+    # Twelve minutes of a lamp that swings from 5 to 60: more than the history holds.
+    for score in cycle * 24:
+        levels.add(score)
+    assert levels.margin(60.0) == pytest.approx(1)
+
+    # Then the light changes, as at dusk, and the same lamp swings from 20 to 200.
+    for score in ([20.0] * (20 * FPS) + [200.0] * (10 * FPS)) * 12:
+        levels.add(score)
+
+    assert levels.separated
+    assert levels.margin(200.0) == pytest.approx(1)
+    assert levels.margin(20.0) == pytest.approx(-1)
+
+
+def test_after_the_light_changes_at_a_stroke_the_levels_come_from_what_followed() -> None:
+    levels = LampLevels(FPS, MIN_SWING)
+    for score in ([-20.0] * (20 * FPS) + [200.0] * (10 * FPS)) * 8:
+        levels.add(score)
+    # The camera's exposure drops: the same lamp, lit, now scores 70 and not 200.
+    after = ([-20.0] * (20 * FPS) + [70.0] * (10 * FPS)) * 4
+    for score in after:
+        levels.add(score)
+
+    # Two minutes on, the history still holds both lit levels, but the last of it is clear.
+    assert levels.separated
+    assert levels.margin(70.0) == pytest.approx(1)
+
+
 def test_a_few_stray_readings_are_not_a_state() -> None:
     levels = LampLevels(FPS, MIN_SWING)
 

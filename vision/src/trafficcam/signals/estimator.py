@@ -400,7 +400,6 @@ class StageSequenceEstimator:
         placed.sort(key=lambda each: each[0].earliest)
 
         merged: list[tuple[Window, bool]] = []
-        doubted: set[int] = set()
         for window, was_seen in placed:
             if not merged or window.earliest - merged[-1][0].latest >= NEAR_S:
                 merged.append((window, was_seen))
@@ -413,8 +412,10 @@ class StageSequenceEstimator:
                 # What was seen is believed over what was worked out.
                 merged[-1] = (window, True) if was_seen else (last, True)
             else:
-                doubted.add(len(merged) - 1)
-        return [window for index, (window, _) in enumerate(merged) if index not in doubted]
+                # Two places for one change that cannot both be right: it was at one of
+                # them, or between.
+                merged[-1] = (Window(last.earliest, max(last.latest, window.latest)), last_seen)
+        return [window for window, _ in merged]
 
 
 def _last(windows: Iterable[Window]) -> Window | None:

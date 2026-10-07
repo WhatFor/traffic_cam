@@ -47,7 +47,7 @@ Every second, each head's reading of three seconds earlier is compared with what
 - where the plan is silent or agrees, it is still what the line goes by;
 - what it is seen to do is not passed to the estimator, and what it had passed is forgotten.
 
-A head that agrees with the plan is believed over it. The plan is wrong for a few seconds in ten hours, when the controller does something unusual, and a good head should win then. `trafficcam_vision_signal_head_doubted` says which heads are doubted.
+A head whose lamps are faint (0015: a lamp that swings less than 25, as in direct sun) is treated as doubted from the start, without waiting for it to be caught out. A head that is neither, and agrees with the plan, is believed over it. The plan is wrong for a few seconds in ten hours, when the controller does something unusual, and a good head should win then. `trafficcam_vision_signal_head_doubted` says which heads are doubted.
 
 **An inferred state goes on the passage**, with `signal_source = inferred`. Inferred states are not published as signal changes: some are known only seconds after the fact, and the dashboard would need records that arrive out of order.
 
@@ -83,6 +83,8 @@ Reading a lamp against levels fails when the light keeps changing (0015). But a 
 - **When it is believed.** The best frame in the window must score 9 for each head of the group and twice what any frame more than 2.5 s from it scores. Otherwise nothing is found.
 - **When it is asked.** Every second, for each change the estimator places no better than 2 s, over as much of its window as has by then been seen in full, 4.5 s behind the camera. So a change is found about five seconds after it happens. Where the heads are being read there is nothing loose and nothing is looked for.
 - **What is done with it.** The change goes to the estimator as placed to 0.6 s either side of the frame found. That is 1.2 s, wider than the 1 s `inferred_within_s` allows, so a change found this way fills in recorded states and does not yet raise events.
+
+Two places for one change that cannot both be right are no longer both dropped: the change is taken to be at one of them or between, which is wider but still says when it was certainly over. On the sun-and-cloud clip that took the slip lane's line from wrong 0.9% of the time to 0.2%.
 
 Two things in the estimator changed to make this work. Each pair of changes now keeps a span for every occasion links lead to, the one before and the one after, where it kept only the narrowest; without that the ahead green's end was not placed at all until the slip green ended half a minute later. And a sighting can be taken back when the head it came from is doubted.
 

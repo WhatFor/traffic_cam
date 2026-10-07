@@ -1,6 +1,6 @@
 # 0015. Signal states from lamp colour
 
-Date: 2026-10-06, revised twice on 2026-10-07: after the first daylight, and after the first direct sun. Status: Accepted, with changing light an open problem. Low sun on a clear afternoon is not yet checked.
+Date: 2026-10-06, revised three times on 2026-10-07: after the first daylight, after the first direct sun, and when a fault in the level learning was found at dusk. Status: Accepted, with changing light an open problem. Low sun on a clear afternoon is not yet checked.
 
 ## Context
 
@@ -30,6 +30,21 @@ A lamp must also swing at least a fifth as much as the strongest lamp on its hea
 **A line's state is the agreement of its heads.** `controls` in `site.yaml` lists the stop lines or movements a head governs. Heads that are `unknown` are left out; if the rest disagree, or none is left, the line is `unknown`. States are kept for 15 minutes, so the state at a past moment can be asked for.
 
 **Changes are published and stored.** Each change is a `SignalChange` on `trafficcam/v1/signals/<head>`, retained, so a new subscriber has every head's current state. Ingest stores them (0011). A passage records the state of its stop line when it crossed.
+
+## A fault that ran from the first version to the evening of 2026-10-07
+
+The levels were meant to be learned again every second from the last 300 s. They were learned again only while that history was still filling: the check for "a second has passed" went by the history's length, which stops growing at 300 s. So five minutes after every start, each lamp's levels froze.
+
+- Overnight it did no harm: lamps look the same all night.
+- It is why the reading collapsed at first light, came back when the service was restarted with that morning's changes, and went again half an hour later as the sun came out.
+- The two daylight investigations in the spike note stand as far as they go, because they were done on clips of three to eight minutes read from a cold start. But the live failures they set out to explain were this fault first and the light second. What the reading does live in sunshine with the fault gone has not yet been seen.
+- It was found at dusk on 2026-10-07 from the lamp colours by then being kept in the track log (0008): at 18:31 the camera's exposure dropped, every lit lamp's score halved, and the slip lane's heads stayed `unknown` for the ten minutes until someone looked.
+
+Three things changed with the fix:
+
+- **The levels are learned again every second**, counted and not inferred from the history's length. A test runs a lamp for twelve minutes and then changes the light.
+- **If the whole 300 s does not fall into two groups, the last 110 s is tried.** After a change of exposure the history holds two lit levels for five minutes. Replaying that dusk, the west heads are then unknown for 1 to 11% of the ten minutes around the change, where the whole history alone gives 12 to 49%.
+- **A head with a lamp that swings less than 25 is marked faint.** It is still read. What is done with that is in 0022.
 
 ## Consequences
 

@@ -27,6 +27,9 @@ HOLD_UNCHECKED = timedelta(seconds=2)
 # A lamp's lit and unlit levels are learned from this much of its own recent history, so
 # they follow the light through the day. It spans several signal cycles.
 LEVEL_WINDOW_S = 300
+# If all of that does not fall into two groups, this much of the end of it may: longer than
+# a signal cycle, so that it still holds every lamp both lit and unlit.
+RECENT_S = 110
 # A lamp's levels are trusted once its history falls into two groups this far apart, with
 # few readings in the middle third between them and neither group too small to be a state
 # of the lamp. At night a lit lamp scores 100 to 200 above an unlit one, under cloud 25 to
@@ -44,6 +47,10 @@ MIN_GROUP_SHARE = 0.02
 # most at night; without this, that glow passes for the lamp being lit until it really is.
 # In direct sunlight a real red swings 0.25 to 0.45 of what the green does.
 MIN_SHARE_OF_STRONGEST = 0.2
+# A head with a lamp that swings less than this is faint: it can be read, but in the light
+# that makes it so, sunshine, its levels move about and it is wrong too often to be relied
+# on. Under cloud the weakest lamp of a head swings 35 to 90, at dusk and night 60 or more.
+FIRM_SWING = 25.0
 
 SEQUENCE = {
     SignalState.red: SignalState.red_amber,
@@ -82,6 +89,7 @@ class LampLevels:
     def __init__(self, fps: int, min_swing: float) -> None:
         self._scores: deque[float] = deque(maxlen=LEVEL_WINDOW_S * fps)
         self._refresh_every = fps
+        self._until_refresh = 0
         self._min_swing = min_swing
         self._low = self._high = 0.0
         # Whether the history shows two states. The head decides whether to trust them.
@@ -93,11 +101,29 @@ class LampLevels:
 
     def add(self, score: float) -> None:
         self._scores.append(score)
-        if len(self._scores) % self._refresh_every == 1:
+        # Counted, not taken from the history's length: that stops growing once it is full.
+        self._until_refresh -= 1
+        if self._until_refresh <= 0:
+            self._until_refresh = self._refresh_every
             self._learn(np.fromiter(self._scores, dtype=np.float32))
 
     def _learn(self, scores: np.ndarray) -> None:
-        """Split the history into an unlit and a lit group, and take each one's middle.
+        """Take the levels from the whole history, or from the last of it if the whole
+        does not fall into two groups.
+
+        The light can change at a stroke: at dusk on 2026-10-07 every lit lamp's score
+        halved within a minute, when the camera's exposure dropped. For five minutes after
+        that the history holds two lit levels and separates into neither.
+        """
+        self._low, self._high, self.separated = self._levels(scores)
+        recent = self._refresh_every * RECENT_S
+        if not self.separated and len(scores) > recent:
+            low, high, separated = self._levels(scores[-recent:])
+            if separated:
+                self._low, self._high, self.separated = low, high, True
+
+    def _levels(self, scores: np.ndarray) -> tuple[float, float, bool]:
+        """Split scores into an unlit and a lit group, and take each one's middle.
 
         Percentiles alone would do if the history held nothing else. It does: a dark
         vehicle behind a lamp reads below unlit and a pale one above lit, for a few
@@ -111,15 +137,15 @@ class LampLevels:
                 break
             low, high = float(np.median(scores[~lit])), float(np.median(scores[lit]))
             smaller = int(min(lit.sum(), len(scores) - lit.sum()))
-        self._low, self._high = low, high
         swing = high - low
         middle = (scores > low + swing / 3) & (scores < high - swing / 3)
-        self.separated = (
+        separated = (
             swing >= self._min_swing
             # A second of readings at the least, and more as the history grows.
             and smaller >= max(self._refresh_every, MIN_GROUP_SHARE * len(scores))
             and middle.mean() <= MAX_MIDDLE_SHARE
         )
+        return low, high, bool(separated)
 
     def margin(self, score: float) -> float:
         """Signed distance from the threshold, as a share of half the swing: above 0 is lit."""
@@ -213,4 +239,5 @@ class LampRoiObserver:
             _, first_seen = head.pending
             if frame.timestamp - first_seen >= head.wait_before(voted):
                 head.state, head.since, head.pending = voted, first_seen, None
-        return Reading(head.state, head.since, confidence)
+        faint = min(lamp.swing for lamp in head.lamps.values()) < FIRM_SWING
+        return Reading(head.state, head.since, confidence, faint)
