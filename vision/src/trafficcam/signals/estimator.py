@@ -24,6 +24,8 @@ MAX_WIDTH_S = 30.0
 SAME_CHANGE_S = 1.0
 # Two places for one change that miss each other by less than this cannot both be right.
 NEAR_S = 10.0
+# How far outside what the plan allows a change may be seen before it counts as outside.
+SLACK_S = 0.5
 # Only a gap fixed this tightly can show that the plan no longer holds.
 FIXED_WIDTH_S = 5.0
 REMEMBER_S = 15 * 60.0
@@ -353,6 +355,11 @@ class StageSequenceEstimator:
         return self._windows((group, edge), around.timestamp())
 
     def _note(self, change: Change, moment: float, head: str) -> None:
+        if not self._full_head[head] and self._ruled_out(change, moment):
+            # A head with one lamp or two has nothing to check its own reading against. If
+            # what a three-lamp head was seen to do leaves no room for this, it is a misreading.
+            self.violations += 1
+            return
         if self._breaks_the_plan(change, moment):
             self.violations += 1
         seen = self._seen.setdefault(change, [])
@@ -367,6 +374,27 @@ class StageSequenceEstimator:
         for each in self._seen.values():
             while each and moment - each[0][0].latest > REMEMBER_S:
                 del each[0]
+
+    def _ruled_out(self, change: Change, moment: float) -> bool:
+        """Whether a change at this moment comes sooner after, or sooner before, a change of
+        a three-lamp head (or one found from the lamps' steps) than the plan lets it."""
+        for other, seen in self._seen.items():
+            if other[0] == change[0]:
+                continue
+            after = self._timings.following.get((other, change))
+            before = self._timings.following.get((change, other))
+            for window, heads in seen:
+                if not any(head == STEPS or self._full_head[head] for head in heads):
+                    continue
+                too_soon_after = after is not None and (
+                    0 <= moment - window.earliest and moment - window.latest < after[0] - SLACK_S
+                )
+                too_soon_before = before is not None and (
+                    0 < window.latest - moment and window.earliest - moment < before[0] - SLACK_S
+                )
+                if too_soon_after or too_soon_before:
+                    return True
+        return False
 
     def _breaks_the_plan(self, change: Change, moment: float) -> bool:
         for other, seen in self._seen.items():

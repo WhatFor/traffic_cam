@@ -173,6 +173,24 @@ def test_something_passing_in_front_of_a_green_head_is_not_its_end() -> None:
     assert at(125).timestamp() not in [w.latest for w in estimator.placed("main", OFF, at(125))]
 
 
+def test_a_one_lamp_heads_change_that_a_three_lamp_head_rules_out_is_not_believed() -> None:
+    estimator = StageSequenceEstimator(CONFIG)
+    side_green(estimator, 100)
+    estimator.observe("near", RED_AMBER, GREEN, at(120))
+    # Main's green has just started. The side head cannot go green for 15 s yet: it does so
+    # 5 s after main's green ends, which is at least 10 s off. This is a misreading.
+    estimator.observe("side", RED, GREEN, at(122))
+
+    assert estimator.violations == 1
+    assert at(122).timestamp() not in [w.latest for w in estimator.placed("side", ON, at(122))]
+    assert estimator.state_of_group("main", at(125)).state == GREEN
+
+    # One that fits is taken, as before.
+    estimator.observe("near", GREEN, AMBER, at(150))
+    estimator.observe("side", RED, GREEN, at(155))
+    assert at(155).timestamp() in [w.latest for w in estimator.placed("side", ON, at(155))]
+
+
 def test_a_change_outside_a_fixed_gap_is_counted() -> None:
     estimator = StageSequenceEstimator(CONFIG)
     side_green(estimator, 100)
