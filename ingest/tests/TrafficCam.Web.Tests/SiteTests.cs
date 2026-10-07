@@ -167,6 +167,7 @@ public class SiteTests(Servers servers)
     public async Task An_archived_clip_is_listed_only_when_asked_for()
     {
         await using var site = await Site.StartAsync(servers);
+        await site.IncludeViewedAsync();
         var kept = await site.AddClipAsync(Noon, [new Trigger("red_light", 5)]);
         var archived = await site.AddClipAsync(Noon.AddHours(1), [new Trigger("red_light", 5)]);
 
@@ -205,17 +206,30 @@ public class SiteTests(Servers servers)
         var before = await site.Client.GetStringAsync("/types/red_light", TestContext.Current.CancellationToken);
         await site.Client.GetStringAsync($"/clips/{id}", TestContext.Current.CancellationToken);
         var after = await site.Client.GetStringAsync("/types/red_light", TestContext.Current.CancellationToken);
+        var index = await site.Client.GetStringAsync("/", TestContext.Current.CancellationToken);
 
         Assert.Contains("<li>", before);
         Assert.Contains("class=\"new\"", before);
-        Assert.Contains("<li class=\"viewed\">", after);
-        Assert.DoesNotContain("class=\"new\"", after);
+        // Once viewed it is out of the lists, and of the front page's columns and counts.
+        Assert.DoesNotContain(id.ToString(), after);
+        Assert.DoesNotContain("Red light", index);
+
+        // Unless viewed clips are asked for: then it is there, greyed and without its dot.
+        using var included = await site.PostAsync("/?handler=Viewed", ("include", "true"), ("returnUrl", "/types/red_light"));
+        var all = await included.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("<li class=\"viewed\">", all);
+        Assert.DoesNotContain("class=\"new\"", all);
+        Assert.Contains("All 1", await site.Client.GetStringAsync("/", TestContext.Current.CancellationToken));
+
+        using var excluded = await site.PostAsync("/?handler=Viewed", ("returnUrl", "/types/red_light"));
+        Assert.DoesNotContain(id.ToString(), await excluded.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task A_description_takes_the_place_of_the_detail_in_a_list()
     {
         await using var site = await Site.StartAsync(servers);
+        await site.IncludeViewedAsync();
         var id = await site.AddClipAsync(Noon, [new Trigger("red_light", 5, Attrs: RedLightAttrs)]);
 
         using var described = await site.PostAsync(
@@ -238,6 +252,7 @@ public class SiteTests(Servers servers)
     public async Task A_false_positive_is_marked_and_vision_is_told_to_keep_it()
     {
         await using var site = await Site.StartAsync(servers);
+        await site.IncludeViewedAsync();
         var id = await site.AddClipAsync(Noon, [new Trigger("red_light", 5)]);
 
         using var marked = await site.PostAsync($"/clips/{id}?handler=FalsePositive", ("on", "true"));

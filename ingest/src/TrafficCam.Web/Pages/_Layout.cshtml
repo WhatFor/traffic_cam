@@ -9,10 +9,22 @@
 <body>
     <header>
         <a href="/">Traffic camera clips</a>
-        <form method="post" asp-page="/Index" asp-page-handler="Archived">
-            <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)">
+        @{
+            var listed = Context.Request.Listed();
+            var here = Context.Request.Path + Context.Request.QueryString;
+        }
+        <form method="post" asp-page="/Index" asp-page-handler="Viewed">
+            <input type="hidden" name="returnUrl" value="@here">
             <label>
-                <input type="checkbox" name="include" value="true" checked="@Context.Request.IncludeArchived()" data-submit>
+                <input type="checkbox" name="include" value="true" checked="@listed.Viewed" data-submit>
+                Include viewed clips
+            </label>
+            <noscript><button>Apply</button></noscript>
+        </form>
+        <form method="post" asp-page="/Index" asp-page-handler="Archived">
+            <input type="hidden" name="returnUrl" value="@here">
+            <label>
+                <input type="checkbox" name="include" value="true" checked="@listed.Archived" data-submit>
                 Include archived clips
             </label>
             <noscript><button>Apply</button></noscript>

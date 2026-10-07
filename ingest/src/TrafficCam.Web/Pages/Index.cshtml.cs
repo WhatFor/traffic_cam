@@ -11,7 +11,7 @@ public sealed class IndexModel(ClipDirectory directory, VisionLink vision) : Pag
     public IReadOnlyList<TypeColumn> Columns { get; private set; } = [];
 
     public async Task OnGetAsync(CancellationToken cancellation) =>
-        Columns = await directory.ColumnsAsync(NewestPerType, Request.IncludeArchived(), cancellation);
+        Columns = await directory.ColumnsAsync(NewestPerType, Request.Listed(), cancellation);
 
     /// <summary>Asks vision for a clip of what has just happened, and goes to where it will be listed.</summary>
     public async Task<IActionResult> OnPostQuickClipAsync(CancellationToken cancellation)
@@ -22,9 +22,15 @@ public sealed class IndexModel(ClipDirectory directory, VisionLink vision) : Pag
         return Redirect($"/types/{Wording.Manual}?asked={Uri.EscapeDataString(asked.UtcDateTime.ToString("o"))}");
     }
 
-    public IActionResult OnPostArchived(bool include, string? returnUrl)
+    public IActionResult OnPostArchived(bool include, string? returnUrl) =>
+        Include(Preferences.ArchivedCookie, include, returnUrl);
+
+    public IActionResult OnPostViewed(bool include, string? returnUrl) =>
+        Include(Preferences.ViewedCookie, include, returnUrl);
+
+    LocalRedirectResult Include(string cookie, bool include, string? returnUrl)
     {
-        Response.IncludeArchived(include);
+        Response.Include(cookie, include);
         return LocalRedirect(Url.IsLocalUrl(returnUrl) ? returnUrl : "/");
     }
 }

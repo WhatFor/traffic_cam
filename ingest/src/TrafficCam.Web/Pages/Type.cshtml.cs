@@ -34,7 +34,7 @@ public sealed class TypeModel(ClipDirectory directory) : PageModel
     public async Task OnGetAsync(CancellationToken cancellation)
     {
         // One more than a page, to know whether there is another.
-        var entries = await directory.OfTypeAsync(Type, Before, PageSize + 1, Request.IncludeArchived(), cancellation);
+        var entries = await directory.OfTypeAsync(Type, Before, PageSize + 1, Request.Listed(), cancellation);
         Entries = [.. entries.Take(PageSize)];
         Older = entries.Count > PageSize ? Entries[^1].At : null;
         // Vision dates the clip from when the request reached it, a moment after it was made.

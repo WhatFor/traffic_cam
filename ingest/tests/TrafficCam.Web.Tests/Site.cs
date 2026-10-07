@@ -68,6 +68,13 @@ sealed class Site : IAsyncDisposable
         return await Client.PostAsync(action, new FormUrlEncodedContent(form), cancellation);
     }
 
+    /// <summary>Ticks "Include viewed clips", so a clip a test has opened stays in the lists.</summary>
+    public async Task IncludeViewedAsync()
+    {
+        using var response = await PostAsync("/?handler=Viewed", ("include", "true"));
+        response.EnsureSuccessStatusCode();
+    }
+
     /// <summary>The value of one column of a clip's row.</summary>
     public async Task<object?> ColumnAsync(Guid clip, string column)
     {

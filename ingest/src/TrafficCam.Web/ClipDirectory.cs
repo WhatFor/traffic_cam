@@ -17,8 +17,8 @@ public sealed record StoredClip(
     string? Description, bool Viewed, bool Archived, bool FalsePositive);
 
 /// <summary>
-/// Reads the clips table. A clip appears once under each type it was recorded for. An archived clip is
-/// in a list only when asked for.
+/// Reads the clips table. A clip appears once under each type it was recorded for. One that has been
+/// archived, or already viewed, is in a list only when asked for.
 /// </summary>
 public sealed class ClipDirectory(NpgsqlDataSource dataSource)
 {
@@ -36,21 +36,26 @@ public sealed class ClipDirectory(NpgsqlDataSource dataSource)
         LEFT JOIN events e ON e.id = (t->>'event_id')::uuid AND e.ts = (t->>'at')::timestamptz
         """;
 
+    /// <summary>Which clips a list holds, given parameters saying whether archived and viewed ones are wanted.</summary>
+    static string Wanted(string archived, string viewed) =>
+        $"c.deleted_at IS NULL AND ({archived} OR c.archived_at IS NULL) AND ({viewed} OR c.viewed_at IS NULL)";
+
     /// <summary>Every type that has clips, each with its newest entries.</summary>
     public async Task<IReadOnlyList<TypeColumn>> ColumnsAsync(
-        int newest, bool includeArchived, CancellationToken cancellation)
+        int newest, Listed listed, CancellationToken cancellation)
     {
         await using var command = dataSource.CreateCommand($"""
             SELECT * FROM (
                 SELECT *, row_number() OVER (PARTITION BY type ORDER BY at DESC, id) AS position,
                        count(*) OVER (PARTITION BY type) AS total
-                FROM ({Entries} WHERE c.deleted_at IS NULL AND ($2 OR c.archived_at IS NULL)) entries
+                FROM ({Entries} WHERE {Wanted("$2", "$3")}) entries
             ) ranked
             WHERE position <= $1
             ORDER BY type, position
             """);
         command.Parameters.AddWithValue(newest);
-        command.Parameters.AddWithValue(includeArchived);
+        command.Parameters.AddWithValue(listed.Archived);
+        command.Parameters.AddWithValue(listed.Viewed);
         await using var reader = await command.ExecuteReaderAsync(cancellation);
         var columns = new List<(string Type, long Total, List<ClipEntry> Entries)>();
         while (await reader.ReadAsync(cancellation))
@@ -65,10 +70,10 @@ public sealed class ClipDirectory(NpgsqlDataSource dataSource)
 
     /// <summary>One type's entries, newest first, from just before <paramref name="before"/> if given.</summary>
     public async Task<IReadOnlyList<ClipEntry>> OfTypeAsync(
-        string type, DateTimeOffset? before, int limit, bool includeArchived, CancellationToken cancellation)
+        string type, DateTimeOffset? before, int limit, Listed listed, CancellationToken cancellation)
     {
         await using var command = dataSource.CreateCommand($"""
-            SELECT * FROM ({Entries} WHERE c.deleted_at IS NULL AND ($4 OR c.archived_at IS NULL)) entries
+            SELECT * FROM ({Entries} WHERE {Wanted("$4", "$5")}) entries
             WHERE type = $1 AND ($2::timestamptz IS NULL OR at < $2)
             ORDER BY at DESC, id
             LIMIT $3
@@ -76,7 +81,8 @@ public sealed class ClipDirectory(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue(type);
         command.Parameters.Add(new NpgsqlParameter<DateTime?> { TypedValue = before?.UtcDateTime });
         command.Parameters.AddWithValue(limit);
-        command.Parameters.AddWithValue(includeArchived);
+        command.Parameters.AddWithValue(listed.Archived);
+        command.Parameters.AddWithValue(listed.Viewed);
         return await EntriesAsync(command, cancellation);
     }
 

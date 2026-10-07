@@ -16,8 +16,8 @@ Two parts of the system own what this touches. The database rows are ingest's, w
 
 **What each mark does.**
 
-- *Viewed*: set when a clip's page is opened. In a list a viewed clip's still is grey and faded; one not yet viewed has a red dot by its time.
-- *Archived*: an archived clip is left out of every list and count unless "Include archived clips" is ticked. That choice is a cookie, so it holds from page to page.
+- *Viewed*: set when a clip's page is opened. A viewed clip is left out of every list and count unless "Include viewed clips" is ticked, so the lists are what is still to be looked at. When it is ticked, a viewed clip's still is grey and faded; one not yet viewed has a red dot by its time.
+- *Archived*: an archived clip is left out of every list and count unless "Include archived clips" is ticked. Each of the two choices is a cookie, so it holds from page to page.
 - *Description*: one per clip, up to 500 characters. In a list it takes the place of what the event recorded; the clip's page keeps both.
 - *False positive*: for the record, and it keeps the files (below).
 
