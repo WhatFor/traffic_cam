@@ -123,7 +123,69 @@ What was changed, and the result on all three clips (states compared with the tr
 
 The dusk and night clips were filmed before the view moved, so running them with today's squares is also a test of a 1.3 px drift at night: no change.
 
-Still to check: low sun behind the camera on a clear afternoon (about 16:30 to 17:30 in October), which this morning could not show.
+## Direct sunlight, 2026-10-07 12:03 (3,592 frames, 240 s)
+
+The cloud cleared from about 09:30. As the sun came round, the five west heads went from never unknown to unknown for 54 to 100% of each half hour between 10:00 and 11:30, and the south head's greens fell from about 20 in a half hour to 0 to 2. On this clip the observer as it stood read two heads of seven, G and F.
+
+What is different in sunshine:
+
+- **A lit red or amber is barely above unlit.** The camera exposes for the sunlit road, so a head in shade goes dark and its lamps with it: C's mean brightness fell from 59 to 33 between 09:27 and 12:18. Lit minus unlit, on the squares as configured:
+
+  | Head | Red | Amber | Green | Under cloud that morning |
+  | --- | --- | --- | --- | --- |
+  | A | 5 | 4 | 24 | 43, 41, 88 |
+  | B | 13 | 13 | 27 | 87, 100, 116 |
+  | C | 7 | 9 | 28 | 46, 76, 78 |
+  | E | 3 | 4 | 8 | 12, 35, 55 |
+  | G | 26 | 24 | 62 | 106, 97, 131 |
+  | D | | | under 3 | 24 |
+  | F | 51 | | 97 | 135, 182 |
+
+  The observer wanted 15 before it trusted a lamp, so no red or amber on A, B or C was trusted, and a head with an untrusted lamp is not read.
+- **Which heads suffer changes with the sun.** In event clips from 10:09 and 10:27, G's green swung by 59 to 99 while its red and amber swung by 14 at most. By 12:03 G was back to the figures above.
+- **The view had moved again**, about 0.2 px right and 0.9 px down since the morning, most of the way back to where it was the night before. So it wanders by about a pixel in a day. Centring the squares for this clip raised the swings by a tenth to a quarter: not the cause, and not enough to matter. Squares half way between the two positions were tried and halved D's swing under cloud. The squares were left alone.
+- **A's amber lens is in the sun**: unlit (69, 72, 78), lit (79, 77, 84). Its 4 points are about one standard deviation of the noise in the clip. A cannot be read in this light, nor E, nor D: the south head's housing is sunlit (mean brightness 96 at 09:27, 150 at 12:18) and no trace of its green is left.
+- **Vehicles pass in front of B** and move its scores by 20, more than its lamps do.
+
+The lamps on B and C are still plainly there when plotted: steps of 7 to 13 that follow the sequence. What kept them out was only the limit of 15.
+
+What was changed:
+
+- **The limit is 6 on a head with three lamps**, and stays 15 on a head with fewer. A second group a few points from the first also comes from noise and from things passing. On a three-lamp head that costs little: all three lamps must be trusted and must show a combination that means something. D and F have no such check. With the limit at 6 for every head, D read a green that was not there in both daytime clips.
+- **The glow check is a fifth, not a quarter.** Measured on all four clips, a neighbour's glow moves an unlit lamp by at most 0.14 of the strongest lamp's swing (C's amber at dusk). A sunlit red swings 0.21 to 0.46 of what its green does. At a quarter, C's red sat on the line and the head was unknown for 14% of the sunny clip; at a fifth it is read throughout, and E is read under cloud.
+
+Results, states compared with the truth frame by frame. The truth for the sunny clip is each group's green lamp, which stays clear, with amber for 3 s after it and red-and-amber for 2 s before it; D has none.
+
+| | Sun: heads read | Sun: wrong states | Cloud | Dusk and night |
+| --- | --- | --- | --- | --- |
+| As it stood | G, F | none | 6 of 7 | 7 of 7 |
+| Now | B, C, G, F | C, for 1.1 s | 7 of 7; E unknown for 2% | no change in any figure |
+
+- Each stop line keeps a head that is read: B for the slip lane, C and G for ahead.
+- The wrong state is an amber during green, when a vehicle passing in front of C darkened its green and lit its amber square. A change that is next in the sequence is believed at once. It happened before the change too whenever C was being read.
+- Starting the observer every 20 s through each clip, to see what the lower limits do just after a start: the share of wrong states is the same as before under cloud, at dusk and at night, to the last digit.
+
+Limits of this: one clip of four minutes with the sun in one place and the light steady. The clip is H.264 and the live observer reads the frame before it is encoded, so the noise it sees may differ.
+
+## Sun and cloud, 2026-10-07 12:41 (7,190 frames, 480 s)
+
+The change above went live at 12:28. B and C, which had not been read for two hours, were read within 40 s, and for seven minutes showed clean cycles with amber at 3.0 s and red-and-amber at 2.0 s. Then both began to show red-and-amber where there was red, for 10 to 53 s at a time (about 2 of C's first 12 minutes), with unknown spells of a second or two during green. G was unknown throughout, and had been misreading before the change. This clip was recorded to see why.
+
+- **The light on a head now changes by half in ten to thirty seconds**, as cloud crosses the sun: mean brightness 46 to 95 on C, 66 to 127 on B.
+- **A lamp's unlit level moves with it.** The amber and green scores rise with plain brightness, by 10 to 25 points over the clip. A lit red adds 4 to 16 and a lit amber 10 to 17. Levels learned over five minutes are then wrong for much of the time: when the light rises, an unlit amber crosses its threshold and a red reads as red-and-amber.
+- **No one threshold separates lit from unlit over the clip** for any red or amber on B or C. It still does for the greens of B, C and G.
+- **Rescoring does not fix it.** Tried, on all five clips: dividing each score by the square's brightness, subtracting the same score on the housing 4 px either side, and subtracting the lowest of the head's other lamps. None separates a red or an amber here, and each costs some lamp half its swing or more at dusk or night.
+- **Taking out the light does not fix it either.** Each lamp's score was fitted against the brightness of its head, even using only the frames where the lamp was truly unlit, and the fitted part removed. No red or amber became separable: the sun reaching a lens or leaving it is not the same thing as the head getting brighter.
+- **Nor does following each lamp's level** as it drifts and calling a jump of half the swing a change. Given the true swings and starting states, it was wrong for 8 to 15% of this clip on B and G, and for 18% of the overcast clip on B, where the fixed levels are never wrong. One vehicle in front of a lamp leaves it in the wrong state until the next real change.
+- The lamps are still there to the eye in a plot: each change is a step within a frame or two, and the light drifts over seconds.
+
+Over the first 75 minutes live, by half hour: B unknown for 2%, 38% and 50%, C for 8%, 11% and 30%. B went to green 64 times in one half hour, where the signals did so about 19 times: it drops to unknown and comes back.
+
+What the wrong readings cost: a red-light event needs an observed red on the line, so red-and-amber in place of red loses events and does not invent them. Two red-light events were raised in those 75 minutes, both on the slip lane. In each clip B's lamps show green going out, amber for 3 s, then red, before the crossing: both reds were real. Amber crossings came back to 13 to 18 in a half hour, from 0 to 4 while the heads were unknown.
+
+Not fixed. What would be needed is a reading that follows the steps and not the levels, or one that leans on the green lamps and the fixed timings after them. The greens are the strongest lamps, but they are not safe as things stand either: read alone by the present learner on this clip, G's green was trusted for 92% of the time, C's for 58% and B's for 26%. Recording each frame's lamp samples in the track log would give hours of this light to test either on, in place of clips caught while it lasts.
+
+Still to check: low sun behind the camera on a clear afternoon (about 16:30 to 17:30 in October).
 
 ## Running it on another clip
 

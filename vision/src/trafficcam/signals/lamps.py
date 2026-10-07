@@ -16,6 +16,8 @@ from trafficcam.signals import Reading
 from trafficcam.sources import Frame, Rgb
 
 VOTE_FRAMES = 5
+# Red, amber and green: a head whose changes can be checked against the sequence.
+FULL_HEAD = 3
 # A change that skips a step of the sequence, or a combination of lamps that means
 # nothing, must last this long before it is believed. Shorter ones are a vehicle passing.
 HOLD = timedelta(seconds=1)
@@ -27,16 +29,21 @@ HOLD_UNCHECKED = timedelta(seconds=2)
 LEVEL_WINDOW_S = 300
 # A lamp's levels are trusted once its history falls into two groups this far apart, with
 # few readings in the middle third between them and neither group too small to be a state
-# of the lamp. In daylight a lit lamp scores 25 to 100 above an unlit one, at night 100 to
-# 200. A lamp that has only been seen unlit has one group, or a second made of a few
-# readings from something passing behind it.
-MIN_SWING = 15.0
+# of the lamp. At night a lit lamp scores 100 to 200 above an unlit one, under cloud 25 to
+# 130, and in direct sunlight a red or an amber only 6 to 13. A lamp that has only been
+# seen unlit has one group, or a second a few points away made of noise or of something
+# passing in front of it.
+MIN_SWING = 6.0
+# On a head with fewer than three lamps nothing else stands in the way of such a second
+# group: there is no other lamp to agree with and no combination that means nothing.
+MIN_SWING_UNCHECKED = 15.0
 MAX_MIDDLE_SHARE = 0.1
 MIN_GROUP_SHARE = 0.02
 # A lamp also has to swing at least this share of what the strongest lamp on its head
-# does. At night the glow of the lamp next to it moves an unlit lamp's score by a tenth
-# of that; without this, that glow passes for the lamp being lit until it really is.
-MIN_SHARE_OF_STRONGEST = 0.25
+# does. The lamp next to it moves an unlit lamp's score by up to 0.14 of its own swing,
+# most at night; without this, that glow passes for the lamp being lit until it really is.
+# In direct sunlight a real red swings 0.25 to 0.45 of what the green does.
+MIN_SHARE_OF_STRONGEST = 0.2
 
 SEQUENCE = {
     SignalState.red: SignalState.red_amber,
@@ -72,9 +79,10 @@ def lamp_score(rgb: Rgb, colour: str) -> float:
 class LampLevels:
     """Learns one lamp's lit and unlit scores, and says which a new score is."""
 
-    def __init__(self, fps: int) -> None:
+    def __init__(self, fps: int, min_swing: float) -> None:
         self._scores: deque[float] = deque(maxlen=LEVEL_WINDOW_S * fps)
         self._refresh_every = fps
+        self._min_swing = min_swing
         self._low = self._high = 0.0
         # Whether the history shows two states. The head decides whether to trust them.
         self.separated = False
@@ -107,7 +115,7 @@ class LampLevels:
         swing = high - low
         middle = (scores > low + swing / 3) & (scores < high - swing / 3)
         self.separated = (
-            swing >= MIN_SWING
+            swing >= self._min_swing
             # A second of readings at the least, and more as the history grows.
             and smaller >= max(self._refresh_every, MIN_GROUP_SHARE * len(scores))
             and middle.mean() <= MAX_MIDDLE_SHARE
@@ -141,7 +149,7 @@ class _Head:
         """How long a change to `new` must last before it is believed."""
         if new == SignalState.unknown:
             return HOLD
-        if len(self.lamps) < 3:
+        if len(self.lamps) < FULL_HEAD:
             return HOLD_UNCHECKED
         if self.state == SignalState.unknown or SEQUENCE.get(self.state) == new:
             return timedelta()
@@ -154,7 +162,15 @@ class LampRoiObserver:
     def __init__(self, config: SiteConfig) -> None:
         self._config = config.signal_heads
         self._heads = {
-            name: _Head({colour: LampLevels(config.camera.fps) for colour in head.lamps})
+            name: _Head(
+                {
+                    colour: LampLevels(
+                        config.camera.fps,
+                        MIN_SWING if len(head.lamps) == FULL_HEAD else MIN_SWING_UNCHECKED,
+                    )
+                    for colour in head.lamps
+                }
+            )
             for name, head in config.signal_heads.items()
         }
 

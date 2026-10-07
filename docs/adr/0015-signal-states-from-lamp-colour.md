@@ -1,6 +1,6 @@
 # 0015. Signal states from lamp colour
 
-Date: 2026-10-06, revised 2026-10-07 after the first daylight. Status: Accepted. Low sun on a clear day is not yet checked.
+Date: 2026-10-06, revised twice on 2026-10-07: after the first daylight, and after the first direct sun. Status: Accepted, with changing light an open problem. Low sun on a clear afternoon is not yet checked.
 
 ## Context
 
@@ -16,7 +16,9 @@ The south arm's head faces away from the camera: only its green can be seen. The
 
 **Each lamp learns its own lit and unlit levels** from the last 300 s of its scores, and is lit above the midpoint. The scores are split into two groups and each group's median is a level. Percentiles were used at first and failed by day: a dark vehicle behind a lamp reads below unlit, a pale one above lit, and those became the levels. The levels follow the light through the day with no settings per time of day.
 
-**A lamp is trusted** once its two groups are at least 15 apart, each holds a second of readings and 2% of the history, and at most a tenth of the readings lie in the middle third between them. It must also swing at least a quarter as much as the strongest lamp on its head: at night the glow of the lamp beside it moves an unlit lamp by more than 15, and that must not pass for the lamp itself. The limit was 30 until daylight, when a lit lamp is only 25 to 135 above unlit. Until every lamp of a head is trusted, the head is `unknown`.
+**A lamp is trusted** once its two groups are far enough apart, each holds a second of readings and 2% of the history, and at most a tenth of the readings lie in the middle third between them. Far enough is 6 on a head with three lamps and 15 on a head with fewer. The limit was 30 until the first daylight, when a lit lamp is only 25 to 135 above unlit, and 15 until the first direct sun, when a red or an amber is only 6 to 13 above. Two groups a few points apart also come from noise and from things passing in front. A three-lamp head is protected from those by needing all three lamps trusted and a combination that means something; a head with one or two lamps is not, so it keeps the higher limit.
+
+A lamp must also swing at least a fifth as much as the strongest lamp on its head: the glow of the lamp beside it moves an unlit lamp by up to 0.14 of that, and must not pass for the lamp itself. Until every lamp of a head is trusted, the head is `unknown`.
 
 **A head's state** is the meaning of its set of lit lamps: red, red and amber, green or amber. Any other combination is `unknown`. The state is then steadied twice:
 
@@ -36,8 +38,11 @@ The south arm's head faces away from the camera: only its green can be seen. The
 - The mapping of heads to stop lines was checked against the same two hours. At the lagged crossing time (0016), the slip lane's heads were green for 94.1% of 459 crossings of its line, where the ahead heads were green for 63%. The ahead heads were green for 91.3% of 979 crossings of the ahead line, where the slip lane's heads were green for 75%.
 - The north arm has no readable head, so its crossings have no signal state. 98.5% of 339 crossings of its stop line fell while the slip lane's heads were green and the ahead heads red. That pattern could stand in for the north arm's green. It is not used.
 - On the first overcast morning the west heads were unknown for a third to a half of the time and the south head missed half its greens. The causes and the changes are in the spike note's daylight section. On a daytime clip the observer now reads six heads of seven with no wrong state, and the dusk and night clips read as before.
-- The head `west_ahead_right` is not read in daylight: its red lamp, hooded and seen from the side, cannot be told lit from unlit. Its stop line has two other heads.
+- The head `west_ahead_right` is read under cloud only just: its red lamp, hooded and seen from the side, swings a fifth of what its green does. In direct sun it is not read. Its stop line has two other heads.
+- When the sun came out later that morning the west heads were unknown for 54 to 100% of the time. The camera exposes for the sunlit road, and a lit red or amber on a shaded head falls to 6 to 13 above unlit. With the lower limit, a sunny clip reads four heads of seven where it read two, with at least one on each stop line. `west_north_near`, `west_ahead_right` and `south` cannot be read in that light: their lamps are within the noise. Which heads those are changes as the sun moves.
+- **Changing light is not handled.** With cloud crossing the sun, a head's brightness changes by half within half a minute and its lamps' unlit levels move by as much as a lit red or amber adds. Levels learned over 300 s are then wrong for part of the time: live, two heads showed red-and-amber in place of red for up to 53 s at a time, and a third stayed `unknown`. That loses red-light events and does not invent them. The measurements and what was tried are in the spike note.
+- A vehicle passing in front of a head can look like the next step of the sequence, which is believed at once: one amber of 1.1 s during a green in the sunny clip.
 - None of this has been compared with hand labels. Low sun behind the camera on a clear afternoon has not been seen yet. The share of time each head is `unknown` is on the Signals dashboard.
-- Lamp positions are in pixels for one camera pose, and by day a lamp is 3 or 4 px across. The view moved 1.3 px overnight on 2026-10-06, which was part of the daylight failure. A drift of that size is harmless at night, when lamps glow wider than they are. If the camera moves further, heads go `unknown` or, worse, read something else's colour. The camera-moved check does not exist yet.
+- Lamp positions are in pixels for one camera pose, and by day a lamp is 3 or 4 px across. The view moved 1.3 px overnight on 2026-10-06, which was part of the daylight failure, and most of the way back by noon. A drift of that size is harmless at night, when lamps glow wider than they are. If the camera moves further, heads go `unknown` or, worse, read something else's colour. The camera-moved check does not exist yet.
 - A lamp that fails, or a head that goes dark, reads as `unknown`, not as a fault.
 - The sampling cost on the Pi is too small to see in the frame time: vision still runs at 15 fps.

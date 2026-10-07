@@ -12,7 +12,13 @@ from test_geometry import FPS, SITE, at
 from trafficcam.config import SiteConfig
 from trafficcam.contracts import SignalSource, SignalState
 from trafficcam.signals import Reading, Signals
-from trafficcam.signals.lamps import LampLevels, LampRoiObserver, lamp_score, state_for
+from trafficcam.signals.lamps import (
+    MIN_SWING,
+    LampLevels,
+    LampRoiObserver,
+    lamp_score,
+    state_for,
+)
 from trafficcam.sources import Frame, Rgb
 
 RED, RED_AMBER, GREEN, AMBER, UNKNOWN = (
@@ -29,6 +35,9 @@ UNLIT: Rgb = (30, 30, 34)
 # The same lamps under an overcast morning sky: far dimmer, and amber a dull red.
 LIT_BY_DAY: dict[str, Rgb] = {"red": (84, 40, 57), "amber": (82, 50, 59), "green": (93, 152, 132)}
 UNLIT_BY_DAY: Rgb = (33, 36, 45)
+# And with the sun on the junction, when the camera exposes for the sunlit road.
+LIT_IN_SUN: dict[str, Rgb] = {"red": (48, 37, 40), "amber": (49, 44, 48), "green": (55, 74, 72)}
+UNLIT_IN_SUN: Rgb = (34, 36, 40)
 NO_IMAGE = np.empty((0, 0, 3), dtype=np.uint8)
 
 # The geometry test site with four heads: two on the stop line, one whose red cannot be
@@ -106,7 +115,7 @@ def test_a_dull_daytime_amber_still_stands_out_from_an_unlit_lamp() -> None:
 
 
 def test_levels_wait_until_a_lamp_has_been_seen_lit_and_unlit() -> None:
-    levels = LampLevels(FPS)
+    levels = LampLevels(FPS, MIN_SWING)
     noise = np.random.default_rng(0).normal(5, 6, size=20 * FPS)
 
     for score in noise:
@@ -121,7 +130,7 @@ def test_levels_wait_until_a_lamp_has_been_seen_lit_and_unlit() -> None:
 
 def test_levels_are_the_middles_of_the_two_states_whatever_passes_behind() -> None:
     rng = np.random.default_rng(0)
-    levels = LampLevels(FPS)
+    levels = LampLevels(FPS, MIN_SWING)
     unlit, lit, dark_vehicle, pale_vehicle = 33.0, 58.0, 18.0, 90.0
     # A daytime lamp that swings by 25, with something darker behind it for a few seconds
     # in every minute and something paler now and then.
@@ -138,7 +147,7 @@ def test_levels_are_the_middles_of_the_two_states_whatever_passes_behind() -> No
 
 
 def test_a_few_stray_readings_are_not_a_state() -> None:
-    levels = LampLevels(FPS)
+    levels = LampLevels(FPS, MIN_SWING)
 
     # Unlit for two minutes, but for a second of it a headlight is in the square.
     for score in [5.0] * (60 * FPS) + [70.0] * FPS + [5.0] * (60 * FPS):
@@ -352,12 +361,39 @@ def by_day(lit: set[str]) -> dict[str, Rgb]:
     }
 
 
+def in_sun(lit: set[str]) -> dict[str, Rgb]:
+    return {
+        lamp: LIT_IN_SUN[lamp] if lamp in lit else UNLIT_IN_SUN
+        for lamp in ("red", "amber", "green")
+    }
+
+
 def test_the_cycle_is_read_in_daylight_colours() -> None:
     readings = follow("near", [by_day(lit) for lit in cycles(3)])
 
     seen = list(runs(readings))
     assert [state for state, _ in seen[-8:]] == [GREEN, AMBER, RED, RED_AMBER] * 2
     assert [frames for _, frames in seen[-8:-4]] == [int(seconds * FPS) for _, seconds in CYCLE]
+
+
+def test_the_cycle_is_read_in_direct_sunlight() -> None:
+    # A lit red is then only 14 above an unlit one, and an amber 11.
+    readings = follow("near", [in_sun(lit) for lit in cycles(3)])
+
+    seen = list(runs(readings))
+    assert [state for state, _ in seen[-8:]] == [GREEN, AMBER, RED, RED_AMBER] * 2
+    assert [frames for _, frames in seen[-8:-4]] == [int(seconds * FPS) for _, seconds in CYCLE]
+
+
+def test_a_faint_lamp_with_no_other_to_agree_with_is_not_read() -> None:
+    # A lone green that swings by 8, as little as a sunlit red does. On a full head the
+    # other lamps and the sequence would vouch for it; here nothing does.
+    faint: Rgb = (38, 46, 44)
+    colours = [{"green": faint if "green" in lit else UNLIT_IN_SUN} for lit in cycles(3)]
+
+    readings = follow("side", colours)
+
+    assert {reading.state for reading in readings} == {UNKNOWN}
 
 
 def test_the_glow_of_the_lamp_beside_it_does_not_light_a_lamp() -> None:
