@@ -22,7 +22,7 @@ Three things stood in the way.
 
 **A passage says when it reached the box and its exit.** `flags.path` holds `junction_at` and `exit_at`, the first frames the track was in the junction zone and in the zone it left by. A dot is at the box's edge and at its exit at those times. A trip that goes round the box and not through it, as the slip lane's does, has no time for the box; its stop-line crossing is used. (The first version left those out, so the slip lane showed no traffic at all.) The rest is simulated: it drives in, waits behind whoever went on to enter the box before it, and sets off in time to arrive when it really did. One that spends long in the box waits in it, as a right-turner does.
 
-**Each group of heads is published twice.** A group is the heads that change together, as in the signal plan, with `north` for the head that cannot be seen. A new record, `GroupState`, goes out on a change of either of:
+**Each group of heads is published twice.** A group is the heads that change together, as in the signal plan, with `north` and `east` for the heads that cannot be seen. A new record, `GroupState`, goes out on a change of either of:
 
 - its *live* state: what is known at once. When its heads are read that is immediate. Otherwise it is `unknown` for the moments that cannot be known yet. Retained on `trafficcam/v1/groups/<group>`.
 - its *settled* state: what is known 45 s on, dated when it happened. This is the record: in order, and never revised. On `.../<group>/settled`.
@@ -43,7 +43,7 @@ Two plain streams were chosen over one that could be corrected after the fact, w
 - A dot's position between its two real times is a guess. Vehicles are spaced and ordered as they were at the box's edge, not necessarily as they were in the queue.
 - The drawing is not to scale and its lanes are not the junction's lanes. Nothing should be measured from it.
 - The drawing has to be kept in step with the site config by hand: a movement with no path in `junction.json` is not drawn, and a group with no stop line is not shown. A test lists the movements and groups it must have.
-- The north arm's line is grey for a few seconds either side of each of its changes, because its links are known only to two seconds (0022). The east arm has no signal to show.
+- The north arm's line is grey for a few seconds either side of each of its changes, because its links are known only to two seconds (0022). The east arm's line is coloured from the timings of its signal (0022); it is the one line drawn whose head and stop line are both out of view.
 - Sending the feed to a public server would publish every whole trip, anonymous but individual, which is more than the build plan's "aggregates only". That is a decision still to be taken.
 - 45 s is judged from the plan of the signals as it is. If the plan's links change, a state could settle later than that and the settled stream would have it as `unknown`.
 - `group_states` got 232 rows in ten minutes on its first evening, which is some 33,000 a day.

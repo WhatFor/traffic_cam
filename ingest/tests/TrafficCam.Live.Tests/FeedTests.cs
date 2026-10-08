@@ -181,7 +181,7 @@ public class FeedTests(Servers servers)
             Assert.NotNull(drawing["movements"]![movement]);
         // Each group that governs traffic has a stop line to colour. The pedestrian crossing is not
         // drawn: no pedestrians are, and its signal means nothing to the vehicles.
-        foreach (var group in new[] { "west_ahead", "west_slip", "south", "north" })
+        foreach (var group in new[] { "west_ahead", "west_slip", "south", "north", "east" })
             Assert.NotNull(drawing["lamps"]![group]);
         Assert.Null(drawing["lamps"]!["crossing"]);
         // The left turn out of the south arm is forbidden, and the drawing says so.

@@ -2,6 +2,7 @@
 
 import copy
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -10,7 +11,7 @@ from pydantic import ValidationError
 from test_geometry import START
 from test_signals import SIGNAL_SITE
 
-from trafficcam.config import SiteConfig
+from trafficcam.config import SiteConfig, load_site_config
 from trafficcam.contracts import GroupState, SignalSource, SignalState
 from trafficcam.signals import UNKNOWN, LineState, Reading, Signals
 from trafficcam.signals.estimator import OFF, ON, Placed, PlanTimings, StageSequenceEstimator
@@ -136,6 +137,24 @@ def test_a_head_nobody_can_see_is_placed_too() -> None:
     # Green from 112 to 115, with red-and-amber before it and amber after.
     assert [unseen(s) for s in (111, 113, 116, 119)] == [RED_AMBER, GREEN, AMBER, RED]
     assert estimator.state_of("no_such_line", at(113)) is None
+
+
+def test_the_sites_east_arm_is_placed_from_the_souths_end_and_the_ahead_green() -> None:
+    site, _ = load_site_config(Path(__file__).parents[2] / "config" / "site.yaml")
+    estimator = StageSequenceEstimator(site)
+    # The ahead green ends at 40. Next cycle the south green ends at 84, and the ahead green
+    # runs from 107 to 135.
+    estimator.observe("west_ahead_far", GREEN, AMBER, at(40))
+    estimator.observe("south", GREEN, RED, at(84))
+    estimator.observe("west_ahead_far", RED_AMBER, GREEN, at(107))
+    estimator.observe("west_ahead_far", GREEN, AMBER, at(135))
+
+    def east(seconds: float) -> SignalState:
+        return estimator.state_of_group("east", at(seconds)).state
+
+    # It ends with the ahead green, and starts 9.5 s after the south's: 13.5 s ahead of it.
+    assert [east(s) for s in (41, 50, 92.5, 95, 134)] == [AMBER, RED, RED_AMBER, GREEN, GREEN]
+    assert [east(s) for s in (136, 140)] == [AMBER, RED]
 
 
 def test_with_nothing_seen_nothing_is_known() -> None:

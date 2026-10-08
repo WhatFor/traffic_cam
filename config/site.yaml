@@ -110,7 +110,7 @@ signal_heads:
     controls: []
 
 # What the signals do, for working out the heads that cannot be read (ADR 0022). A group is
-# the heads that change together; `north` is the north arm's head, which is not in view.
+# the heads that change together; `north` and `east` are those arms' heads, which are not in view.
 # A link is the seconds from one group's green starting (.on) or ending (.off) to another's,
 # least and most. Most are fixed by the controller; three vary with the traffic.
 signal_plan:
@@ -120,6 +120,7 @@ signal_plan:
     south: { heads: [south] }
     crossing: { heads: [crossing_west_exit] }
     north: { controls: [stopline_north] }
+    east: {}                        # not in view, and its stop line is not either
   # Printed by `just learn-signal-plan`, from 12 hours of 2026-10-06 and 07 (about 510 cycles).
   links:
     - { from: crossing.off, to: west_ahead.on, s: [22.6, 26.8] }
@@ -139,6 +140,13 @@ signal_plan:
     - { from: west_ahead.off, to: north.on, s: [6.0, 8.0] }
     - { from: north.off, to: south.on, s: [3.0, 5.0] }
     - { from: north.on, to: north.off, s: [9.0, 24.0] }
+    # The east arm, from timings taken at the junction: green 6.5 s after the south arm's
+    # amber ends, at least 13.5 s before the ahead green, and ending with it. The first holds
+    # in every cycle: east traffic enters the box 12.5 s after the south green ends whatever
+    # else varies. The ahead green is the one that comes late, in a third of cycles.
+    - { from: south.off, to: east.on, s: [9.3, 9.7] }
+    - { from: east.on, to: west_ahead.on, s: [13.3, 20.0] }
+    - { from: west_ahead.off, to: east.off, s: [0.0, 0.0] }
 
 # The road in metres: points found both in the frame and on a map, fitted with
 # `just calibrate-speed`. Distances are measured only among them. Metres are east and north
