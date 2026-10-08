@@ -9,7 +9,7 @@ inference:
   threshold: 0.35
   classes: [car, truck, bus, motorcycle, bicycle]
   crops:                                          # x, y, w, h; square, resized to 640x640
-    - [502, 331, 1060, 1060]                      # junction and the three visible arms
+    - [499, 330, 1060, 1060]                      # junction and the three visible arms
 
 tracking:
   lost_s: 2.0                     # a track survives this long without a matching detection
@@ -24,27 +24,27 @@ junction: box_junction            # the zone that lines' inbound and outbound ar
 
 zones:
   box_junction:                                   # right side clipped where the building hides it
-    polygon: [[952, 808], [1200, 606], [1514, 659], [1501, 755], [1471, 775], [1460, 871], [1444, 899]]
+    polygon: [[949, 807], [1197, 605], [1511, 658], [1498, 754], [1468, 774], [1457, 870], [1441, 898]]
   approach_west:
     role: approach
     arm: west
-    polygon: [[314, 1215], [332, 1121], [494, 1008], [565, 958], [700, 984], [925, 1032], [748, 1213], [577, 1356]]
+    polygon: [[311, 1214], [329, 1120], [491, 1007], [562, 957], [697, 983], [922, 1031], [745, 1212], [574, 1355]]
   exit_west:
     role: exit
     arm: west
-    polygon: [[1067, 1026], [1348, 1090], [1236, 1318], [1176, 1506], [857, 1455], [663, 1380], [817, 1225], [985, 1080]]
+    polygon: [[1064, 1025], [1345, 1089], [1233, 1317], [1173, 1505], [854, 1454], [660, 1379], [814, 1224], [982, 1079]]
   approach_north:
     role: approach
     arm: north
-    polygon: [[514, 608], [804, 629], [775, 695], [513, 691]]
+    polygon: [[511, 607], [801, 628], [772, 694], [510, 690]]
   exit_north:
     role: exit
     arm: north
-    polygon: [[535, 698], [726, 723], [791, 733], [789, 803], [610, 800], [534, 770]]
+    polygon: [[532, 697], [723, 722], [788, 732], [786, 802], [607, 799], [531, 769]]
   approach_east:
     role: approach
     arm: east
-    polygon: [[1430, 680], [1506, 721], [1531, 591], [1574, 418], [1536, 413], [1502, 472], [1468, 546], [1435, 630]]
+    polygon: [[1427, 679], [1503, 720], [1528, 590], [1571, 417], [1533, 412], [1499, 471], [1465, 545], [1432, 629]]
   # The building on the right hides the south arm and the nearer westbound lanes of
   # the east arm. Traffic from both first appears in the same patch, so the two zones
   # share a polygon and are told apart by which way a vehicle is heading when it appears.
@@ -52,27 +52,27 @@ zones:
     role: approach
     arm: south
     entry_heading: [120, 215]
-    polygon: [[1379, 729], [1504, 753], [1471, 775], [1460, 871], [1444, 899], [1430, 946], [1365, 934]]
+    polygon: [[1376, 728], [1501, 752], [1468, 774], [1457, 870], [1441, 898], [1427, 945], [1362, 933]]
   approach_east_hidden:                           # heading down the image, like the rest of the east arm
     role: approach
     arm: east
     entry_heading: [220, 265]
-    polygon: [[1379, 729], [1504, 753], [1471, 775], [1460, 871], [1444, 899], [1430, 946], [1365, 934]]
+    polygon: [[1376, 728], [1501, 752], [1468, 774], [1457, 870], [1441, 898], [1427, 945], [1362, 933]]
   exit_east:
     role: exit
     arm: east
-    polygon: [[1210, 596], [1262, 531], [1396, 404], [1489, 311], [1534, 322], [1465, 441], [1417, 535], [1365, 606]]
+    polygon: [[1207, 595], [1259, 530], [1393, 403], [1486, 310], [1531, 321], [1462, 440], [1414, 534], [1362, 605]]
   exit_south:                                     # where traffic bound for the hidden arm is last seen
     role: exit
     arm: south
-    polygon: [[1462, 717], [1482, 701], [1506, 697], [1505, 763], [1473, 771], [1461, 757]]
+    polygon: [[1459, 716], [1479, 700], [1503, 696], [1502, 762], [1470, 770], [1458, 756]]
 
 lines:
   # West-arm traffic drives away from the camera, so the tracked point is a vehicle's rear:
   # lag_s is roughly how long before that its front crossed the line.
-  stopline_west_eastbound: { points: [[698, 984], [925, 1032]], direction: inbound, lag_s: 0.7 }
-  stopline_west_northbound: { points: [[623, 879], [772, 883]], direction: inbound, lag_s: 0.7 }   # left-turn slip lane
-  stopline_north: { points: [[808, 634], [706, 717]], direction: inbound }
+  stopline_west_eastbound: { points: [[695, 983], [922, 1031]], direction: inbound, lag_s: 0.7 }
+  stopline_west_northbound: { points: [[620, 878], [769, 882]], direction: inbound, lag_s: 0.7 }   # left-turn slip lane
+  stopline_north: { points: [[805, 633], [703, 716]], direction: inbound }
 # Right turns, which may wait in the box for oncoming traffic, and the left turn out of the
 # south arm, which is forbidden.
 movements:
@@ -88,25 +88,25 @@ movements:
 # docs/spikes/lamp-readability.md, which says how the squares were found.
 signal_heads:
   west_north_near:  # A
-    lamps: { red: [586, 773, 3, 3], amber: [587, 781, 3, 3], green: [588, 790, 3, 3] }
+    lamps: { red: [583, 772, 3, 3], amber: [584, 780, 3, 3], green: [585, 789, 3, 3] }
     controls: [stopline_west_northbound]
   west_north_far:  # B
-    lamps: { red: [786, 731, 3, 3], amber: [786, 740, 3, 3], green: [788, 748, 3, 3] }
+    lamps: { red: [784, 731, 3, 3], amber: [783, 739, 3, 3], green: [785, 747, 3, 3] }
     controls: [stopline_west_northbound]
   west_ahead_left:  # C
-    lamps: { red: [808, 794, 3, 3], amber: [809, 803, 3, 3], green: [808, 812, 3, 3] }
+    lamps: { red: [805, 793, 3, 3], amber: [806, 802, 3, 3], green: [805, 811, 3, 3] }
     controls: [stopline_west_eastbound]
   west_ahead_right:  # E: hooded and side-on; in daylight its red cannot be seen, only its green
-    lamps: { red: [1034, 846, 3, 3], amber: [1035, 856, 3, 3], green: [1034, 866, 3, 3] }
+    lamps: { red: [1032, 845, 3, 3], amber: [1033, 855, 3, 3], green: [1032, 864, 3, 3] }
     controls: [stopline_west_eastbound]
   west_ahead_far:  # G: far side, small
-    lamps: { red: [1424, 522, 3, 3], amber: [1423, 529, 3, 3], green: [1423, 536, 3, 3] }
+    lamps: { red: [1421, 522, 3, 3], amber: [1421, 528, 3, 3], green: [1420, 534, 3, 3] }
     controls: [stopline_west_eastbound]
   south:  # D: seen from the side; only its green arrows can be read
-    lamps: { green: [965, 672, 3, 3] }
+    lamps: { green: [962, 671, 3, 3] }
     controls: [right_from_south, left_from_south]
   crossing_west_exit:  # F: pedestrian signal; its red and green figures are 3 pixels apart
-    lamps: { red: [1082, 923, 3, 3], green: [1081, 926, 3, 3] }
+    lamps: { red: [1079, 922, 3, 3], green: [1078, 925, 3, 3] }
     controls: []
 
 # What the signals do, for working out the heads that cannot be read (ADR 0022). A group is
@@ -144,15 +144,15 @@ signal_plan:
 # `just calibrate-speed`. Distances are measured only among them. Metres are east and north
 # of the first point.
 ground_points:
-  - { pixel: [950, 808], ground: [0.00, 0.00] }       # box junction, north-west corner
-  - { pixel: [1196, 610], ground: [24.35, 7.46] }     # box junction, north-east corner
-  - { pixel: [1443, 902], ground: [5.56, -16.47] }    # box junction, south-west corner
-  - { pixel: [725, 985], ground: [-13.98, -4.22] }    # west approach cycle box, rear corner
-  - { pixel: [782, 938], ground: [-10.59, -3.20] }    # west approach cycle box, front corner
-  - { pixel: [734, 699], ground: [2.00, 13.90] }      # north stop line, island end
-  - { pixel: [804, 642], ground: [9.44, 17.81] }      # north stop line, kerb end
-  - { pixel: [1350, 614], ground: [27.60, 1.20] }     # nose of the island east of the box
-  - { pixel: [1002, 737], ground: [6.23, 3.02] }      # nose of the island north of the box
+  - { pixel: [947, 807], ground: [0.00, 0.00] }       # box junction, north-west corner
+  - { pixel: [1193, 609], ground: [24.35, 7.46] }     # box junction, north-east corner
+  - { pixel: [1440, 901], ground: [5.56, -16.47] }    # box junction, south-west corner
+  - { pixel: [722, 984], ground: [-13.98, -4.22] }    # west approach cycle box, rear corner
+  - { pixel: [779, 937], ground: [-10.59, -3.20] }    # west approach cycle box, front corner
+  - { pixel: [731, 698], ground: [2.00, 13.90] }      # north stop line, island end
+  - { pixel: [801, 641], ground: [9.44, 17.81] }      # north stop line, kerb end
+  - { pixel: [1347, 613], ground: [27.60, 1.20] }     # nose of the island east of the box
+  - { pixel: [999, 736], ground: [6.23, 3.02] }      # nose of the island north of the box
 
 detectors:
   box_junction:
@@ -170,7 +170,7 @@ detectors:
     sustained_s: 1.0              # a passage's speed is the fastest it held for this long
     stretches:                    # average speed, entry to exit, for the dashboard
       box:                        # across the box junction, as far as the camera sees it
-        polygon: [[952, 808], [1200, 606], [1514, 659], [1501, 755], [1471, 775], [1460, 871], [1444, 899]]
+        polygon: [[949, 807], [1197, 605], [1511, 658], [1498, 754], [1468, 774], [1457, 870], [1441, 898]]
         min_m: 12
     limit_mph: 30
     flag_above_mph: 35            # the limit, plus 10% and 2 mph

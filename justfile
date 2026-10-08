@@ -22,9 +22,9 @@ deploy target:
     changed=$(awk '$1 ~ /^<f/ && $2 ~ /\// { sub(/\/.*/, "", $2); print $2 }' <<<"$sent" | sort -u)
     # Vision is restarted only if something it runs from was sent: its code, the site config,
     # its unit or its environment. A restart blanks the signals and the clip buffer for minutes.
-    sent+=$(rsync -az --delete --mkpath --itemize-changes --exclude .venv --exclude __pycache__ \
+    sent+=$'\n'$(rsync -az --delete --mkpath --itemize-changes --exclude .venv --exclude __pycache__ \
         --exclude '.*_cache' vision/ {{target}}:trafficcam/vision/ | sed 's|^\(\S* \)|\1vision/|')
-    sent+=$(rsync -az --delete --mkpath --itemize-changes config/ {{target}}:trafficcam/config/ \
+    sent+=$'\n'$(rsync -az --delete --mkpath --itemize-changes config/ {{target}}:trafficcam/config/ \
         | sed 's|^\(\S* \)|\1config/|')
     if grep -qE '^(<f|\*deleting)\S* +(vision/|config/|systemd/|\.env$)' <<<"$sent"; then
         changed+=" vision"
