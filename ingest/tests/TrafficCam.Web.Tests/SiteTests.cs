@@ -41,6 +41,18 @@ public class SiteTests(Servers servers)
     }
 
     [Fact]
+    public async Task The_camera_page_plays_the_stream_from_mediamtx()
+    {
+        await using var site = await Site.StartAsync(servers);
+
+        var html = await site.Client.GetStringAsync("/camera", TestContext.Current.CancellationToken);
+
+        Assert.Contains("data-stream-port=\"8889\"", html);
+        Assert.Contains("data-stream-path=\"cam\"", html);
+        Assert.Contains("href=\"/camera\"", await site.Client.GetStringAsync("/", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task With_no_clips_the_index_says_so()
     {
         await using var site = await Site.StartAsync(servers);
@@ -306,7 +318,7 @@ public class SiteTests(Servers servers)
         Assert.Equal("clip_command/1", (string?)command["schema"]);
         Assert.Equal(Site.Camera, (string?)command["camera"]);
         Assert.Equal(VisionLink.QuickClipReason, (string?)command["reason"]);
-        Assert.Equal(90, (double?)command["pre_s"]);
+        Assert.Equal(150, (double?)command["pre_s"]);
         Assert.Equal(0, (double?)command["post_s"]);
         // It lands on the manual clips, which look again until the clip is there.
         var url = asked.RequestMessage!.RequestUri!.PathAndQuery;

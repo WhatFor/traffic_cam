@@ -35,6 +35,14 @@ a {
     color: inherit;
 }
 
+video.camera {
+    background: #000;
+    display: block;
+    height: auto;
+    max-height: calc(100vh - 8rem);
+    width: 100%;
+}
+
 h1,
 h2 {
     font-size: 1.1rem;

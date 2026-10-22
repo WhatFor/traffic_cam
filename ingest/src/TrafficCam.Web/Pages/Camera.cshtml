@@ -1,0 +1,8 @@
+@page "/camera"
+@inject WebOptions Options
+@{
+    ViewData["Title"] = "Camera";
+}
+<h1>Camera</h1>
+<video class="camera" muted autoplay playsinline controls data-stream-port="@Options.StreamPort" data-stream-path="@Options.StreamPath"></video>
+<p class="notice" data-stream-status hidden>The camera stream is not playing. Trying again.</p>

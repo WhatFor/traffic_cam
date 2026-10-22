@@ -30,9 +30,9 @@ Two detectors from the build plan's last phase: near misses, by post-encroachmen
 | Either vehicle stops dead within 2 s | 0.1 |
 | One of them then stands near the spot for `standstill_after_s` (20 s) | 0.3 |
 | Both do | 0.5 in place of 0.3 |
-| A lone standstill of `lone_standstill_s` (90 s) in the junction or an exit, with fewer than two others standing | 0.5 |
+| A lone standstill of `lone_standstill_s` (60 s) in the junction or an exit, with fewer than two others standing | 0.5 |
 
-An event is raised at `min_confidence` (0.5), so a contact needs a standstill after it. Approach zones do not count for standing: that is where traffic queues. 90 s is a whole signal cycle. `notify_min_confidence` (0.7) is for the notifier, which does not exist yet.
+An event is raised at `min_confidence` (0.5), so a contact needs a standstill after it. Approach zones do not count for standing: that is where traffic queues. 60 s is most of a signal cycle; it was a whole one (90 s) until 2026-10-22, when it was lowered so that the clip, reaching back from when the vehicle stopped, still has the time before it in the ring (0017). The cost is more candidates from vehicles that stand most of a cycle without anything being wrong. `notify_min_confidence` (0.7) is for the notifier, which does not exist yet.
 
 **The build plan's deceleration threshold is gone.** At 6 m/s² over half a second it fired on 146 tracks an hour, from boxes changing shape. A stop is used only after a contact, and adds little.
 

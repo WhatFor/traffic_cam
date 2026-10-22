@@ -31,7 +31,7 @@ All four are per clip. A clip recorded for two events carries the same marks in 
 - Vision writes an empty `<clip id>.keep` beside the clip, or removes it. Retention reads that file and nothing else: a kept clip is deleted only when older than `kept_days` (183) and is passed over when the folder is over its size. Its bytes still count, so the folder stays within `max_gb` at the cost of clips that are not kept.
 - When a kept clip is finally deleted vision clears the retained message.
 
-**The quick clip is a manual clip with its own lengths.** `ClipCommand` gained optional `pre_s` and `post_s`. The button asks for 90 s before and none after: what the ring holds, ending now. On the Pi a 90 s clip of 74 MB was complete, with its still and its record, 0.8 s after the press. The browser is sent to the manual clips, which look again every two seconds for half a minute until it is listed.
+**The quick clip is a manual clip with its own lengths.** `ClipCommand` gained optional `pre_s` and `post_s`. The button asks for 150 s before and none after (90 s until the ring grew on 2026-10-22): what the ring holds, ending now. On the Pi a 90 s clip of 74 MB was complete, with its still and its record, 0.8 s after the press. The browser is sent to the manual clips, which look again every two seconds for half a minute until it is listed.
 
 **A manual clip's link opens it at the start.** An event's link opens its clip two seconds before the event. A manual clip's moment is when it was asked for, which for a quick clip is its last frame.
 

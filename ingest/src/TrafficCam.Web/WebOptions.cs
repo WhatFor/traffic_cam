@@ -15,7 +15,11 @@ public sealed class WebOptions
     public string Camera { get; init; } = "";
 
     /// <summary>How far back a quick clip reaches. Vision gives what its buffer holds if that is less.</summary>
-    public double QuickClipSeconds { get; init; } = 90;
+    public double QuickClipSeconds { get; init; } = 150;
+
+    /// <summary>Where MediaMTX serves the camera over WebRTC, on the same host as this site.</summary>
+    public int StreamPort { get; init; } = 8889;
+    public string StreamPath { get; init; } = "cam";
 }
 
 public sealed class MqttOptions

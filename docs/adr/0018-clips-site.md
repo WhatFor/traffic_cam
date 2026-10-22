@@ -22,6 +22,8 @@ An entry is one trigger of one clip, so a clip recorded for two things is in two
 
 **Playing is the browser's video element over HTTP range requests.** Clips are MP4 with the index first, so a browser plays one as it arrives and fetches only the part it seeks to. Nothing is transcoded and there is no streaming server.
 
+**The camera page plays the live stream with half a second of buffer** (added 2026-10-22). `/camera` asks MediaMTX for the stream over WebRTC (WHEP, port 8889 of the same host) and sets the receiver's `jitterBufferTarget` to 500 ms. MediaMTX's own player, at `:8889/cam`, stuttered: each second's keyframe is about 480 KB against 23 KB for the frames between, it crosses the Wi-Fi in a burst, and some of it has to be sent again. With the browser's usual buffer of 0.1 to 0.15 s the picture stopped at every keyframe and then jumped: measured from the PC, 13 to 21 pauses of 150 to 520 ms a minute, all at the same frame of the second, with every frame arriving in the end. With half a second of buffer the same stream played a minute without a pause. The stream itself was clean (15 fps, no gaps, no UDP drops on the Pi), so the encoder's keyframes are left as they are: smaller ones would cost picture quality every second, and fewer would cost clips their lead-in (0017).
+
 **Files are found by clip id only.** The path is the one in the clip's row, and it is served only if it resolves to a file inside the clips folder. Nothing in a request is ever used as a path. A deleted clip's files are not served and its page says when it went.
 
 **Read-only twice over.** The database connection is opened with `default_transaction_read_only=on`, and the clips folder is mounted read-only, at the same path as on the host so the paths in the database need no translation. Since 0021 this holds for the pages' reading and for the folder; the marks on a clip are written through a second connection used by one class.
@@ -38,3 +40,4 @@ An entry is one trigger of one clip, so a clip recorded for two things is in two
 - The health-check mode and the database options are copies of ingest's, a dozen lines each, rather than a shared library for two services.
 - Notification emails (build plan, Phase 7) can link to `/clips/{id}`.
 - The solution's folder is still called `ingest`, though it now holds two services.
+- The camera page is about half a second behind real time, a third of a second more than MediaMTX's player. MediaMTX's player still stutters; it is not linked from anything.
