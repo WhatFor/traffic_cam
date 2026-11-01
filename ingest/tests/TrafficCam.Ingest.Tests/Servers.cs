@@ -55,6 +55,15 @@ public sealed class Servers : IAsyncLifetime
 
     public Task StopDatabaseAsync() => RunAsync(pgCtl!, "stop", "-w", "-m", "fast", "-D", Data);
 
+    /// <summary>For a test's cleanup, which cannot know how far the test got.</summary>
+    public async Task EnsureDatabaseStartedAsync()
+    {
+        using var status = Start(pgCtl!, "status", "-D", Data);
+        await status.WaitForExitAsync();
+        if (status.ExitCode != 0)
+            await StartDatabaseAsync();
+    }
+
     /// <summary>A new, migrated database, so tests do not see each other's rows.</summary>
     public async Task<DatabaseOptions> CreateDatabaseAsync()
     {

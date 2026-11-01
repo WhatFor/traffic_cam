@@ -87,6 +87,9 @@ services:
   # Published on the PC by `just deploy` into ./ingest; there is no image to build.
   ingest:
     <<: *service
+    # .NET aborts on an unhandled exception, and as PID 1 it would hang there, still "running",
+    # so the restart policy would never act. Under an init it exits.
+    init: true
     # The tag must provide the .NET runtime that ingest was published for.
     image: mcr.microsoft.com/dotnet/aspnet:10.0.12
     user: app
@@ -116,6 +119,7 @@ services:
   # it asks vision over the broker. Published by `just deploy` into ./web, as ingest is.
   web:
     <<: *service
+    init: true # as for ingest
     image: mcr.microsoft.com/dotnet/aspnet:10.0.12
     user: app
     working_dir: /app
@@ -151,6 +155,7 @@ services:
   # half behind. Read-only, and open to the local network without a login.
   live:
     <<: *service
+    init: true # as for ingest
     image: mcr.microsoft.com/dotnet/aspnet:10.0.12
     user: app
     working_dir: /app
